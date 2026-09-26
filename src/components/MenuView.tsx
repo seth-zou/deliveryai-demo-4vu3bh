@@ -6,14 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { money } from '@/lib/utils'
 import type { CartItem, Product } from '@/types'
+import { RecommendationArea } from '@/components/RecommendationArea'
 
 interface MenuViewProps {
   diners: string[]
   soldOut: string[]
+  cart: CartItem[]
   onAdd: (item: CartItem) => void
 }
 
-export function MenuView({ diners, soldOut, onAdd }: MenuViewProps) {
+export function MenuView({ diners, soldOut, cart, onAdd }: MenuViewProps) {
   const { t } = useTranslation()
   const [category, setCategory] = useState('menu.cat.recommend')
   const [search, setSearch] = useState('')
@@ -77,6 +79,8 @@ export function MenuView({ diners, soldOut, onAdd }: MenuViewProps) {
           <div className="flex -space-x-2">{diners.map((name, index) => <span key={name} title={name} className={`flex h-9 w-9 items-center justify-center rounded-full border-2 border-charcoal-900 text-xs font-bold dark:border-black ${index === 0 ? 'bg-chili-500 dark:bg-chili-400' : index === 1 ? 'bg-amber-400 text-charcoal-900' : 'bg-rice-200 text-charcoal-900 dark:bg-charcoal-700 dark:text-rice-200'}`}>{name.slice(0, 1)}</span>)}</div>
         </div>
       </div>
+
+      <RecommendationArea cart={cart} soldOut={soldOut} diners={diners} onProductClick={openSpec} onAdd={onAdd} />
 
       <div className="sticky top-24 z-20 -mx-4 mt-5 bg-rice-100/95 px-4 pb-3 backdrop-blur dark:bg-charcoal-950/95 lg:mx-0 lg:px-0">
         <div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal-500 dark:text-rice-200/40" size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('menu.search_placeholder')} className="h-12 w-full rounded-2xl border border-charcoal-900/5 bg-white pl-11 pr-4 text-sm text-charcoal-900 shadow-sm outline-none transition placeholder:text-charcoal-500 focus:border-chili-500/30 focus:ring-4 focus:ring-chili-50 dark:border-rice-50/10 dark:bg-charcoal-800 dark:text-rice-50 dark:placeholder:text-rice-200/40 dark:focus:border-chili-400/30 dark:focus:ring-chili-400/10" /></div>
