@@ -57,7 +57,7 @@ test.describe('智能点单助理 - 直连 API Mock 测试（错误分类与流�
   // ── REQ-001.1 / REQ-002.1: 直连 API 流式响应正常显示 ─────────
 
   test('AI-DIRECT-001: 直连 API 流式响应正常显示 AI 回复文本', async ({ page }) => {
-    await page.route('**/v1/responses*', async (route) => {
+    await page.route('**/api/chat*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'text/event-stream',
@@ -81,7 +81,7 @@ test.describe('智能点单助理 - 直连 API Mock 测试（错误分类与流�
   // ── REQ-004.2: 无效 API Key (401) ──────────────────────────
 
   test('AI-DIRECT-002: API 返回 401 时显示「API Key 无效，请检查配置」', async ({ page }) => {
-    await page.route('**/v1/responses*', async (route) => {
+    await page.route('**/api/chat*', async (route) => {
       await route.fulfill({
         status: 401,
         contentType: 'application/json',
@@ -102,7 +102,7 @@ test.describe('智能点单助理 - 直连 API Mock 测试（错误分类与流�
   // ── REQ-004.2: 无效 API Key (403) ──────────────────────────
 
   test('AI-DIRECT-003: API 返回 403 时显示「API Key 无效，请检查配置」', async ({ page }) => {
-    await page.route('**/v1/responses*', async (route) => {
+    await page.route('**/api/chat*', async (route) => {
       await route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -122,7 +122,7 @@ test.describe('智能点单助理 - 直连 API Mock 测试（错误分类与流�
   // ── REQ-004.3: 网络错误 ─────────────────────────────────────
 
   test('AI-DIRECT-004: 网络错误时显示「网络错误，请检查网络连接后重试」', async ({ page }) => {
-    await page.route('**/v1/responses*', async (route) => {
+    await page.route('**/api/chat*', async (route) => {
       await route.abort('failed')
     })
 
@@ -138,7 +138,7 @@ test.describe('智能点单助理 - 直连 API Mock 测试（错误分类与流�
   // ── REQ-004.4: API 5xx 错误 ─────────────────────────────────
 
   test('AI-DIRECT-005: API 返回 500 时显示通用错误提示和重试按钮', async ({ page }) => {
-    await page.route('**/v1/responses*', async (route) => {
+    await page.route('**/api/chat*', async (route) => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -161,7 +161,7 @@ test.describe('智能点单助理 - 直连 API Mock 测试（错误分类与流�
 
   test('AI-DIRECT-006: 错误后保留用户消息，重试按钮可重新发送', async ({ page }) => {
     let requestCount = 0
-    await page.route('**/v1/responses*', async (route) => {
+    await page.route('**/api/chat*', async (route) => {
       requestCount++
       if (requestCount === 1) {
         // 第一次请求返回 500
@@ -202,7 +202,7 @@ test.describe('智能点单助理 - 直连 API Mock 测试（错误分类与流�
 
   test('AI-DIRECT-007: AI 返回 add_to_cart tool call 时购物车更新', async ({ page }) => {
     let requestCount = 0
-    await page.route('**/v1/responses*', async (route) => {
+    await page.route('**/api/chat*', async (route) => {
       requestCount++
       if (requestCount === 1) {
         // 第一轮：返回 tool call (add_to_cart, product_id=p3)
@@ -236,7 +236,7 @@ test.describe('智能点单助理 - 直连 API Mock 测试（错误分类与流�
 
   test('AI-DIRECT-008: AI 返回已售罄菜品的 add_to_cart 时购物车不新增商品', async ({ page }) => {
     let requestCount = 0
-    await page.route('**/v1/responses*', async (route) => {
+    await page.route('**/api/chat*', async (route) => {
       requestCount++
       if (requestCount === 1) {
         // p8 是售罄菜品（initialState.soldOut = ['p8']）

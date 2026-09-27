@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const CHROMIUM_PATH = process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/chromium.org/chromium/chrome'
+const CHROMIUM_PATH = process.env.PLAYWRIGHT_CHROMIUM_PATH || '/usr/bin/chromium-browser'
 
 export default defineConfig({
   testDir: './e2e',

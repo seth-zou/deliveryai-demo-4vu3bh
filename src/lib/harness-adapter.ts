@@ -60,7 +60,8 @@ export interface ToolCallResult {
   action?: FrontendAction
 }
 
-const HARNESSROUTER_BASE_URL = 'https://api.harnessrouter.ai'
+/** 同源 API 代理路径（Vercel Edge Function 或 Vite dev middleware） */
+const PROXY_API_URL = '/api/chat'
 
 // ── 工具定义 ──────────────────────────────────────────────
 
@@ -332,10 +333,10 @@ export async function chatWithHarness(
     // 第一次请求带 tools，后续 tool 结果回传也带 tools
     body.tools = tools
 
-    const response = await fetch(`${HARNESSROUTER_BASE_URL}/v1/responses`, {
+    const response = await fetch(PROXY_API_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        'X-HarnessRouter-API-Key': apiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),

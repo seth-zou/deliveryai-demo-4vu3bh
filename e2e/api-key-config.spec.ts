@@ -163,7 +163,7 @@ test.describe('HARNESSROUTER_API_KEY 临时配置入口 - E2E 验收测试', () 
   test('API-KEY-011: 配置 Key 后发送消息，请求 Header 包含 Authorization Bearer Key', async ({ page }) => {
     // Mock HarnessRouter API 接口，捕获请求 Header
     let capturedHeaders: Record<string, string> = {}
-    await page.route('**/v1/responses*', async (route) => {
+    await page.route('**/api/chat*', async (route) => {
       capturedHeaders = route.request().headers()
       // 返回最小 SSE 响应（response.completed 事件）
       await route.fulfill({
@@ -183,12 +183,12 @@ test.describe('HARNESSROUTER_API_KEY 临时配置入口 - E2E 验收测试', () 
     await msgInput.fill('推荐一个锅底')
     await msgInput.press('Enter')
     // 等待请求发出并捕获 Header，验证 Authorization Bearer 头
-    await expect.poll(() => capturedHeaders['authorization'] || '').toBe('Bearer header-test-key-abc')
+    await expect.poll(() => capturedHeaders['x-harnessrouter-api-key'] || '').toBe('header-test-key-abc')
   })
 
   test('API-KEY-012: 未配置 Key 时发送消息，显示配置提示且不发起 API 请求', async ({ page }) => {
     let requestMade = false
-    await page.route('**/v1/responses*', async (route) => {
+    await page.route('**/api/chat*', async (route) => {
       requestMade = true
       await route.fulfill({
         status: 200,
