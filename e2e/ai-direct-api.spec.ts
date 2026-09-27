@@ -228,8 +228,8 @@ test.describe('智能点单助理 - 直连 API Mock 测试（错误分类与流�
 
     // 验证 AI 确认文本显示（证明多轮 tool call 流程完成）
     await expect(page.getByText(/已加入购物车/)).toBeVisible({ timeout: 15000 })
-    // 验证购物车出现商品（购物车按钮可见，含商品数量角标）
-    await expect(page.getByRole('button', { name: /查看购物车|View Cart/ })).toBeVisible({ timeout: 5000 })
+    // 验证购物车出现商品（侧边栏购物车显示商品数量）
+    await expect(page.getByText(/共 1 份菜品|1 items/i)).toBeVisible({ timeout: 5000 })
   })
 
   // ── REQ-002.6: 售罄拦截 ─────────────────────────────────────
@@ -262,7 +262,7 @@ test.describe('智能点单助理 - 直连 API Mock 测试（错误分类与流�
 
     // 验证 AI 告知售罄
     await expect(page.getByText(/已售罄|sold out/i)).toBeVisible({ timeout: 15000 })
-    // 验证购物车不出现（无商品按钮）
-    await expect(page.getByRole('button', { name: /查看购物车|View Cart/ })).not.toBeVisible({ timeout: 3000 })
+    // 验证购物车无新增商品（侧边栏不显示商品数量）
+    await expect(page.getByText(/共 \d+ 份菜品|\d+ items/i)).not.toBeVisible({ timeout: 3000 })
   })
 })
