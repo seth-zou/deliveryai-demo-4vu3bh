@@ -13,3 +13,5 @@ dist/
 server/.env
 server/.env.local
 test-results/
+.vercel
+.env*
