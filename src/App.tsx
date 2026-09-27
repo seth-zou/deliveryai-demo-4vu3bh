@@ -9,6 +9,7 @@ import { CheckoutView } from '@/components/CheckoutView'
 import { DemoConsole } from '@/components/DemoConsole'
 import { MenuView } from '@/components/MenuView'
 import { OrderView } from '@/components/OrderView'
+import { AIAssistant } from '@/components/AIAssistant'
 import { ServiceSheet } from '@/components/ServiceSheet'
 import { TopBar } from '@/components/TopBar'
 import { Button } from '@/components/ui/button'
@@ -165,6 +166,8 @@ export default function App() {
         <MobileNav active={serviceOpen} icon={ConciergeBell} label={t('common.nav_service')} badge={waitingServices} onClick={() => setServiceOpen(true)} />
         <MobileNav active={consoleOpen} icon={LayoutDashboard} label={t('common.nav_demo')} onClick={() => setConsoleOpen(true)} />
       </nav>
+
+      <AIAssistant state={state} dispatch={dispatch} visible={state.view === "menu" || state.view === "order"} />
 
       <div className="pointer-events-none fixed left-1/2 top-24 z-40 -translate-x-1/2 rounded-full bg-charcoal-900/90 px-4 py-2 text-xs font-semibold text-white shadow-float dark:bg-black/90 dark:shadow-dark-float">
         {state.lastMessage}

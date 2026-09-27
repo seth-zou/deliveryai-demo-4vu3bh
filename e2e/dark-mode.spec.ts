@@ -284,10 +284,6 @@ test.describe('夜间模式 - 补充验收测试', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await gotoMenu(page)
     // The CSS rule @media (prefers-reduced-motion: reduce) should apply transition:none
-    const transitionValue = await page.evaluate(() => {
-      const html = document.documentElement
-      return getComputedStyle(html).transitionProperty
-    })
     // When prefers-reduced-motion is reduce, transitions should be 'none' or 'all' with 0s duration
     // Actually the CSS sets transition: none !important
     const allTransitionNone = await page.evaluate(() => {

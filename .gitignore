@@ -4,3 +4,12 @@ dist/
 *.log
 .vefaas/
 *.tsbuildinfo
+
+
+# Environment files (contain API keys, never commit)
+.env
+.env.local
+.env.*.local
+server/.env
+server/.env.local
+test-results/
