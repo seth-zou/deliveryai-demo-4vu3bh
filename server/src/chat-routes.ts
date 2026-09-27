@@ -52,9 +52,16 @@ export function createChatRouter(router: Router): Router {
       res.setHeader('Connection', 'keep-alive')
       res.setHeader('X-Accel-Buffering', 'no')
 
+      // 立即写入 SSE 注释行，flush headers
+      res.write(': connected\n\n')
+
       // AbortController 支持取消
       const abortController = new AbortController()
-      req.on('close', () => abortController.abort())
+      res.on("close", () => {
+        if (!abortController.signal.aborted) {
+          abortController.abort()
+        }
+      })
 
       const finalResult = await chatWithHarness({
         message,
@@ -74,11 +81,15 @@ export function createChatRouter(router: Router): Router {
       res.end()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Internal server error'
-      // 如果响应头已发送（SSE 模式），通过 SSE 错误事件通知前端
+      // SSE headers 已发送（通过 : connected 注释行 flush）
       if (res.headersSent) {
-        res.write(`event: error\n`)
-        res.write(`data: ${JSON.stringify({ message })}\n\n`)
-        res.end()
+        try {
+          res.write(`event: error\n`)
+          res.write(`data: ${JSON.stringify({ message })}\n\n`)
+          res.end()
+        } catch {
+          // 响应已关闭，忽略写入错误
+        }
       } else {
         res.status(500).json({ error: message })
       }

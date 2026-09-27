@@ -215,7 +215,7 @@ describe('getHarnessConfig', () => {
   it('应正确加载 harness 配置', () => {
     const config = getHarnessConfig()
     assert.equal(config.feature_key, 'smart_order_assistant')
-    assert.equal(config.harness_id, 'chrn_68f0b1eb42e0423ca54783ab9a73eb98')
+    assert.equal(config.harness_id, 'chrn_776c21a9bdb747f899a18d1de794fa14')
     assert.equal(config.name, 'Smart Order Assistant')
     assert.ok(config.tools.length === 6)
     assert.ok(config.tools.find(t => t.name === 'search_menu'))
