@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Currency } from '@/lib/utils'
+import { CURRENCIES, type Currency } from '@/lib/utils'
 import { CurrencyContext, STORAGE_KEY } from '@/hooks/currency-context'
 
 function getInitialCurrency(): Currency {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored === 'CNY' || stored === 'USD') return stored
+    if (stored && (CURRENCIES as string[]).includes(stored)) return stored as Currency
   } catch {
     // localStorage 不可用时降级为默认 CNY
   }
@@ -27,11 +27,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     setCurrencyState(next)
   }, [])
 
-  const toggle = useCallback(() => {
-    setCurrencyState((prev) => (prev === 'CNY' ? 'USD' : 'CNY'))
-  }, [])
-
-  const value = useMemo(() => ({ currency, setCurrency, toggle }), [currency, setCurrency, toggle])
+  const value = useMemo(() => ({ currency, setCurrency }), [currency, setCurrency])
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>
 }

@@ -5,144 +5,139 @@ async function gotoMenu(page: Page) {
   await expect(page.getByText('想吃什么，一起点。')).toBeVisible()
 }
 
-async function getCurrencyButton(page: Page) {
+// 币种下拉触发按钮
+function currencyButton(page: Page) {
   return page.getByRole('button', { name: /切换币种|Switch currency/ })
 }
 
+// 打开下拉并按货币名称选择（zh 文案）
+async function selectCurrency(page: Page, label: string) {
+  await currencyButton(page).click()
+  await page.getByRole('menuitemradio', { name: new RegExp(label) }).click()
+}
+
+// 首个菜品价格文本
+function firstPrice(page: Page) {
+  return page.locator('p.text-xl.font-extrabold.text-chili-500').first()
+}
+
 test.describe('多币种金额展示', () => {
-  test('CUR-001: 默认展示 CNY（¥ 符号）', async ({ page }) => {
+  test('CUR-001: 默认展示 CNY（¥ 符号，两位小数）', async ({ page }) => {
     await gotoMenu(page)
-    // 菜品价格以 ¥ 开头
-    const priceText = await page.locator('p.text-xl.font-extrabold.text-chili-500').first().textContent()
-    expect(priceText).toMatch(/^¥/)
+    await expect(currencyButton(page)).toHaveText('¥')
+    const priceText = await firstPrice(page).textContent()
+    expect(priceText).toMatch(/^¥\d[\d,]*\.\d{2}/)
   })
 
-  test('CUR-002: 切换到 USD 后金额展示 $ 符号', async ({ page }) => {
+  test('CUR-002: 下拉展示全部六种货币可选项', async ({ page }) => {
     await gotoMenu(page)
-    const btn = await getCurrencyButton(page)
-    // 初始为 ¥
-    await expect(btn).toHaveText('¥')
-    // 点击切换
-    await btn.click()
-    // 按钮显示 $
-    await expect(btn).toHaveText('$')
-    // 菜品价格以 $ 开头
-    const priceText = await page.locator('p.text-xl.font-extrabold.text-chili-500').first().textContent()
-    expect(priceText).toMatch(/^\$/)
+    await currencyButton(page).click()
+    for (const label of ['人民币', '美元', '欧元', '日元', '港币', '新台币']) {
+      await expect(page.getByRole('menuitemradio', { name: new RegExp(label) })).toBeVisible()
+    }
+    // 当前 CNY 项被标记为选中
+    await expect(page.getByRole('menuitemradio', { name: /人民币/ })).toHaveAttribute('aria-checked', 'true')
   })
 
-  test('CUR-003: 切换回 CNY 后金额恢复 ¥ 符号', async ({ page }) => {
+  test('CUR-003: 切换到 USD 后展示 $ 符号且金额被换算', async ({ page }) => {
     await gotoMenu(page)
-    const btn = await getCurrencyButton(page)
-    // 切换到 USD
-    await btn.click()
-    await expect(btn).toHaveText('$')
-    // 切换回 CNY
-    await btn.click()
-    await expect(btn).toHaveText('¥')
-    const priceText = await page.locator('p.text-xl.font-extrabold.text-chili-500').first().textContent()
-    expect(priceText).toMatch(/^¥/)
+    const cnyText = await firstPrice(page).textContent()
+    await selectCurrency(page, '美元')
+    await expect(currencyButton(page)).toHaveText('$')
+    const usdText = await firstPrice(page).textContent()
+    expect(usdText).toMatch(/^\$\d[\d,]*\.\d{2}/)
+    // 换算生效：USD 金额不等于把 CNY 数字直接套 $（汇率 < 1，数值应更小）
+    const cnyNum = Number((cnyText ?? '').replace(/[^\d.]/g, ''))
+    const usdNum = Number((usdText ?? '').replace(/[^\d.]/g, ''))
+    expect(usdNum).toBeLessThan(cnyNum)
   })
 
-  test('CUR-006: 千分位分隔验证', async ({ page }) => {
+  test('CUR-004: JPY 与 TWD 取整（无小数）', async ({ page }) => {
     await gotoMenu(page)
-    const btn = await getCurrencyButton(page)
-    await btn.click()
-    await expect(btn).toHaveText('$')
-    // 检查金额格式包含千分位（如果有 >= 1000 的金额）
-    // 小金额也应正确格式化为 $XX.XX
-    const priceText = await page.locator('p.text-xl.font-extrabold.text-chili-500').first().textContent()
-    expect(priceText).toMatch(/^\$\d/)
+    await selectCurrency(page, '日元')
+    await expect(currencyButton(page)).toHaveText('¥')
+    let priceText = await firstPrice(page).textContent()
+    expect(priceText).toMatch(/^¥\d[\d,]*$/)
+    expect(priceText).not.toMatch(/\./)
+
+    await selectCurrency(page, '新台币')
+    await expect(currencyButton(page)).toHaveText('NT$')
+    priceText = await firstPrice(page).textContent()
+    expect(priceText).toMatch(/^NT\$\d[\d,]*$/)
+    expect(priceText).not.toMatch(/\./)
   })
 
-  test('CUR-007: localStorage 持久化', async ({ page }) => {
+  test('CUR-005: EUR / HKD 两位小数与对应符号', async ({ page }) => {
     await gotoMenu(page)
-    const btn = await getCurrencyButton(page)
-    await btn.click()
-    await expect(btn).toHaveText('$')
-    // 验证 localStorage 已保存
+    await selectCurrency(page, '欧元')
+    await expect(currencyButton(page)).toHaveText('€')
+    expect(await firstPrice(page).textContent()).toMatch(/^€\d[\d,]*\.\d{2}/)
+
+    await selectCurrency(page, '港币')
+    await expect(currencyButton(page)).toHaveText('HK$')
+    expect(await firstPrice(page).textContent()).toMatch(/^HK\$\d[\d,]*\.\d{2}/)
+  })
+
+  test('CUR-006: 切换回 CNY 后恢复 ¥ 符号', async ({ page }) => {
+    await gotoMenu(page)
+    await selectCurrency(page, '美元')
+    await expect(currencyButton(page)).toHaveText('$')
+    await selectCurrency(page, '人民币')
+    await expect(currencyButton(page)).toHaveText('¥')
+    expect(await firstPrice(page).textContent()).toMatch(/^¥/)
+  })
+
+  test('CUR-007: 选择持久化到 localStorage', async ({ page }) => {
+    await gotoMenu(page)
+    await selectCurrency(page, '欧元')
     const stored = await page.evaluate(() => localStorage.getItem('currency'))
-    expect(stored).toBe('USD')
+    expect(stored).toBe('EUR')
   })
 
   test('CUR-008: 首次访问默认 CNY', async ({ page }) => {
     await page.goto('/?preview=menu')
-    const btn = await getCurrencyButton(page)
-    await expect(btn).toHaveText('¥')
+    await expect(currencyButton(page)).toHaveText('¥')
     const stored = await page.evaluate(() => localStorage.getItem('currency'))
     expect(stored).toBe('CNY')
   })
 
-  test('CUR-011: 硬编码 ¥ 文案不受币种切换影响', async ({ page }) => {
-    await gotoMenu(page)
-    const btn = await getCurrencyButton(page)
-    // 切换到 USD
-    await btn.click()
-    await expect(btn).toHaveText('$')
-    // 会员卡片区仍包含硬编码 ¥ 文案
-    await page.getByRole('button', { name: /会员|Membership/ }).click()
-    // 硬编码的 "含 ¥30 菜品券" 文案不受影响
-    await expect(page.getByText(/¥30/)).toBeVisible()
-  })
-
-  test('CUR-012: 币种切换不影响语言切换', async ({ page }) => {
-    await gotoMenu(page)
-    const btn = await getCurrencyButton(page)
-    await btn.click()
-    await expect(btn).toHaveText('$')
-    // 切换语言
-    const langBtn = page.getByRole('button', { name: /切换语言|Switch language/ })
-    await langBtn.click()
-    // 语言已切换，币种仍为 USD
-    await expect(btn).toHaveText('$')
-  })
-
-  test('CUR-013: aria-label 和 aria-pressed 属性验证', async ({ page }) => {
-    await gotoMenu(page)
-    const btn = await getCurrencyButton(page)
-    await expect(btn).toHaveAttribute('aria-pressed', 'false')
-    await btn.click()
-    await expect(btn).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  test('CUR-014: localStorage 不可用时降级为内存态', async ({ page }) => {
-    // 禁用 localStorage
+  test('CUR-009: localStorage 不可用时切换仍即时生效', async ({ page }) => {
     await page.addInitScript(() => {
-      const original = window.localStorage
       Object.defineProperty(window, 'localStorage', {
         get() {
           throw new Error('localStorage not available')
         },
       })
-      void original
     })
     await page.goto('/?preview=menu')
-    const btn = await getCurrencyButton(page)
-    // 仍能正常切换
-    await expect(btn).toHaveText('¥')
-    await btn.click()
-    await expect(btn).toHaveText('$')
+    await expect(currencyButton(page)).toHaveText('¥')
+    await selectCurrency(page, '日元')
+    await expect(currencyButton(page)).toHaveText('¥')
+    expect(await firstPrice(page).textContent()).toMatch(/^¥\d[\d,]*$/)
   })
 
-  test('CUR-009: 完整点餐流程在 USD 模式下的金额展示', async ({ page }) => {
+  test('CUR-010: 币种切换不影响语言切换', async ({ page }) => {
     await gotoMenu(page)
-    const btn = await getCurrencyButton(page)
-    await btn.click()
-    await expect(btn).toHaveText('$')
-    // 添加菜品到购物车
+    await selectCurrency(page, '美元')
+    await expect(currencyButton(page)).toHaveText('$')
+    await page.getByRole('button', { name: /切换语言|Switch language/ }).click()
+    // 语言切换后币种仍为 USD
+    await expect(currencyButton(page)).toHaveText('$')
+  })
+
+  test('CUR-011: 硬编码 ¥ 文案不受币种切换影响', async ({ page }) => {
+    await gotoMenu(page)
+    await selectCurrency(page, '美元')
+    await page.getByRole('button', { name: /会员|Membership/ }).click()
+    await expect(page.getByText(/¥30/)).toBeVisible()
+  })
+
+  test('CUR-012: 完整点餐流程在 USD 模式下购物车金额换算展示', async ({ page }) => {
+    await gotoMenu(page)
+    await selectCurrency(page, '美元')
+    await expect(currencyButton(page)).toHaveText('$')
     await page.locator('article button:has(svg.lucide-plus)').first().click()
-    // 弹窗中选择加入
     await page.getByRole('button', { name: /加入本桌购物车|Add to Table Cart/ }).click()
-    // 检查购物车金额以 $ 开头
     await expect(page.locator('aside').locator('text=/\\$/')).toBeVisible()
-  })
-
-  test('CUR-015: 结账页千分位和小数位正确性', async ({ page }) => {
-    await gotoMenu(page)
-    const btn = await getCurrencyButton(page)
-    await btn.click()
-    // 金额格式应为 $XX.XX（两位小数）
-    const priceText = await page.locator('p.text-xl.font-extrabold.text-chili-500').first().textContent()
-    expect(priceText).toMatch(/^\$\d+\.\d{2}$/)
   })
 })

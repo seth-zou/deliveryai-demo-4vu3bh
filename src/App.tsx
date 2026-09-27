@@ -19,7 +19,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { orderReducer, initialState } from '@/state/orderReducer'
 import { products } from '@/data/menu'
 import { money } from '@/lib/utils'
-import type { AppState, ViewName } from '@/types'
+import type { AppState, CartItem, ViewName } from '@/types'
 
 function createPreviewState(): AppState {
   const preview = new URLSearchParams(window.location.search).get('preview')
@@ -40,7 +40,7 @@ export default function App() {
   const [state, dispatch] = useReducer(orderReducer, initialState, createPreviewState)
   const { enabled: elderly, toggle: toggleElderly } = useElderlyMode()
   const { theme, setTheme, isDark } = useTheme()
-  const { currency, toggle: toggleCurrency } = useCurrency()
+  const { currency, setCurrency } = useCurrency()
   const [serviceOpen, setServiceOpen] = useState(false)
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
@@ -74,8 +74,9 @@ export default function App() {
     toggleElderly()
     dispatch({ type: 'SET_MESSAGE', message: elderly ? '已切换为常规模式' : '已切换为老人模式' })
   }
-  const handleToggleCurrency = () => {
-    toggleCurrency()
+  const addRecommended = (item: CartItem) => {
+    dispatch({ type: 'ADD_CART', item })
+    dispatch({ type: 'SET_MESSAGE', message: t('recommend.added_hint') })
   }
 
   if (state.view === 'bind' || !state.table) {
@@ -100,7 +101,7 @@ export default function App() {
         onToggleLanguage={toggleLanguage}
         onToggleElderly={handleToggleElderly}
         onSetTheme={setTheme}
-        onToggleCurrency={handleToggleCurrency}
+        onSetCurrency={setCurrency}
         onView={changeView}
         onService={() => setServiceOpen(true)}
         onConsole={() => setConsoleOpen(true)}
@@ -113,7 +114,7 @@ export default function App() {
           </div>
           <aside className="hidden lg:block">
             <div className="sticky top-28">
-              <CartPanel items={state.cart} currency={currency} onQuantity={(uid, delta) => dispatch({ type: 'CHANGE_QTY', uid, delta })} onSubmit={submitOrder} />
+              <CartPanel items={state.cart} orderItems={state.orderItems} soldOut={state.soldOut} diners={state.diners} currency={currency} onQuantity={(uid, delta) => dispatch({ type: 'CHANGE_QTY', uid, delta })} onSubmit={submitOrder} onAddRecommended={addRecommended} />
               <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-100/70 p-4 text-sm text-charcoal-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-rice-200">
                 <p className="font-bold dark:text-amber-400">{t('common.collab_title')}</p>
                 <p className="mt-1 leading-6 text-charcoal-500 dark:text-rice-200/60">{t('common.collab_desc')}</p>
@@ -154,7 +155,7 @@ export default function App() {
 
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
         <DialogContent title={t('cart.dialog_title')}>
-          <div className="mt-5"><CartPanel compact items={state.cart} currency={currency} onQuantity={(uid, delta) => dispatch({ type: 'CHANGE_QTY', uid, delta })} onSubmit={submitOrder} /></div>
+          <div className="mt-5"><CartPanel compact items={state.cart} orderItems={state.orderItems} soldOut={state.soldOut} diners={state.diners} currency={currency} onQuantity={(uid, delta) => dispatch({ type: 'CHANGE_QTY', uid, delta })} onSubmit={submitOrder} onAddRecommended={addRecommended} /></div>
         </DialogContent>
       </Dialog>
 

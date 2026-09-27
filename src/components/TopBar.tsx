@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { tableAreas } from '@/data/menu'
 import type { ThemeMode } from '@/hooks/useTheme'
-import type { Currency } from '@/lib/utils'
+import { CURRENCIES, currencySymbol, type Currency } from '@/lib/utils'
 import type { ViewName } from '@/types'
 
 interface TopBarProps {
@@ -20,19 +20,22 @@ interface TopBarProps {
   onToggleLanguage: () => void
   onToggleElderly: () => void
   onSetTheme: (mode: ThemeMode) => void
-  onToggleCurrency: () => void
+  onSetCurrency: (currency: Currency) => void
   onView: (view: ViewName) => void
   onService: () => void
   onConsole: () => void
 }
 
-export function TopBar({ table, view, serviceCount, language, elderly, theme, isDark, currency, onToggleLanguage, onToggleElderly, onSetTheme, onToggleCurrency, onView, onService, onConsole }: TopBarProps) {
+export function TopBar({ table, view, serviceCount, language, elderly, theme, isDark, currency, onToggleLanguage, onToggleElderly, onSetTheme, onSetCurrency, onView, onService, onConsole }: TopBarProps) {
   const { t } = useTranslation()
   const areaKey = tableAreas[table]
   const tableLabel = areaKey ? `${table} · ${t(areaKey)}` : table
   const [themePopoverOpen, setThemePopoverOpen] = useState(false)
   const themeBtnRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const [currencyPopoverOpen, setCurrencyPopoverOpen] = useState(false)
+  const currencyBtnRef = useRef<HTMLButtonElement>(null)
+  const currencyPopoverRef = useRef<HTMLDivElement>(null)
 
   // 点击外部关闭主题 popover
   useEffect(() => {
@@ -50,6 +53,23 @@ export function TopBar({ table, view, serviceCount, language, elderly, theme, is
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [themePopoverOpen])
+
+  // 点击外部关闭币种 popover
+  useEffect(() => {
+    if (!currencyPopoverOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        currencyPopoverRef.current &&
+        !currencyPopoverRef.current.contains(e.target as Node) &&
+        currencyBtnRef.current &&
+        !currencyBtnRef.current.contains(e.target as Node)
+      ) {
+        setCurrencyPopoverOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [currencyPopoverOpen])
 
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor
 
@@ -113,16 +133,37 @@ export function TopBar({ table, view, serviceCount, language, elderly, theme, is
             )}
           </div>
 
-          {/* 币种切换按钮 */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onToggleCurrency}
-            aria-label={t('common.aria_currency')}
-            aria-pressed={currency === 'USD'}
-          >
-            {currency === 'CNY' ? '¥' : '$'}
-          </Button>
+          {/* 币种切换下拉菜单 */}
+          <div className="relative">
+            <Button
+              ref={currencyBtnRef}
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrencyPopoverOpen(!currencyPopoverOpen)}
+              aria-label={t('common.aria_currency')}
+              aria-haspopup="menu"
+              aria-expanded={currencyPopoverOpen}
+            >
+              {currencySymbol[currency]}
+            </Button>
+            {currencyPopoverOpen && (
+              <div
+                ref={currencyPopoverRef}
+                className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-charcoal-900/10 bg-white p-1.5 shadow-float dark:border-rice-50/10 dark:bg-charcoal-800 dark:shadow-dark-float"
+                role="menu"
+              >
+                {CURRENCIES.map((c) => (
+                  <CurrencyOption
+                    key={c}
+                    active={currency === c}
+                    onClick={() => { onSetCurrency(c); setCurrencyPopoverOpen(false) }}
+                    symbol={currencySymbol[c]}
+                    label={t(`common.currency.${c}`)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
 
           <Button variant="outline" size="icon" onClick={onToggleElderly} aria-label={elderly ? '切换至常规模式' : '切换至老人模式'} className={elderly ? 'text-chili-500 dark:text-chili-400' : ''}>
             <Accessibility size={18} />
@@ -149,6 +190,25 @@ function ThemeOption({ active, onClick, icon: Icon, label }: { active: boolean; 
       }`}
     >
       <Icon size={16} />
+      {label}
+      {active && <span className="ml-auto h-2 w-2 rounded-full bg-chili-500 dark:bg-chili-400" />}
+    </button>
+  )
+}
+
+function CurrencyOption({ active, onClick, symbol, label }: { active: boolean; onClick: () => void; symbol: string; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      role="menuitemradio"
+      aria-checked={active}
+      className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
+        active
+          ? 'bg-chili-50 text-chili-600 dark:bg-chili-500/20 dark:text-chili-400'
+          : 'text-charcoal-700 hover:bg-rice-100 dark:text-rice-200 dark:hover:bg-charcoal-700'
+      }`}
+    >
+      <span className="w-8 shrink-0 tabular-nums">{symbol}</span>
       {label}
       {active && <span className="ml-auto h-2 w-2 rounded-full bg-chili-500 dark:bg-chili-400" />}
     </button>
