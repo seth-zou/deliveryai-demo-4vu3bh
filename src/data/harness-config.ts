@@ -1,0 +1,152 @@
+/**
+ * Smart Order Assistant Harness 配置
+ *
+ * 从 server/harnesses/smart-order-assistant.json 迁移到前端模块，
+ * 使前端直连 HarnessRouter Cloud API 时能构建完整请求体。
+ */
+
+export interface ToolDefinition {
+  type: 'function'
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+}
+
+export interface HarnessConfig {
+  feature_key: string
+  harness_id: string
+  workspace_id: string
+  name: string
+  base: string
+  default_model: string
+  system_prompt: string
+  tools: ToolDefinition[]
+}
+
+export const harnessConfig: HarnessConfig = {
+  feature_key: 'smart_order_assistant',
+  harness_id: 'chrn_776c21a9bdb747f899a18d1de794fa14',
+  workspace_id: 'org.zoumzlzoumzl.gmail.com__hr_default',
+  name: 'Smart Order Assistant',
+  base: 'opencode',
+  default_model: 'nemotron-3.5-lightning',
+  system_prompt:
+    "You are a smart order assistant for a hotpot restaurant called Boiling Point (沸点). Help customers browse the menu, get recommendations, and manage their cart through natural language conversation. You can search the menu, get product details, add items to cart, update cart quantities, and view the cart. Always be friendly and helpful. When a customer asks to order something, use the available tools to execute the action. If an item is sold out, inform the customer and suggest alternatives. Do NOT submit orders, process payments, call services, or perform any operation outside the 6 available tools. Respond in the same language as the customer (Chinese or English).",
+  tools: [
+    {
+      type: 'function',
+      name: 'search_menu',
+      description:
+        'Search the menu by keyword. Returns matching dishes with name, description, price, and availability status.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Search keyword (dish name, description, category, etc.)',
+          },
+        },
+        required: ['query'],
+      },
+    },
+    {
+      type: 'function',
+      name: 'get_menu_by_category',
+      description:
+        'Get all dishes in a specific menu category. Categories include: menu.cat.broth (Broth), menu.cat.meat (Beef & Lamb), menu.cat.seafood (Seafood), menu.cat.veggie (Vegetables & Tofu), menu.cat.staple (Staples & Drinks).',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: {
+            type: 'string',
+            description:
+              "Category name or keyword (e.g. 'broth', 'meat', 'seafood', 'veggie', 'staple')",
+          },
+        },
+        required: ['category'],
+      },
+    },
+    {
+      type: 'function',
+      name: 'get_product_detail',
+      description:
+        'Get detailed information about a specific dish, including all available options (portion, flavor, spice level).',
+      parameters: {
+        type: 'object',
+        properties: {
+          product_id: {
+            type: 'string',
+            description: 'The product ID (e.g. p1, p2, p3)',
+          },
+        },
+        required: ['product_id'],
+      },
+    },
+    {
+      type: 'function',
+      name: 'add_to_cart',
+      description:
+        'Add a dish to the shopping cart. The dish will be ordered by the first diner at the table. If the dish is sold out, the operation will be blocked and alternatives will be suggested.',
+      parameters: {
+        type: 'object',
+        properties: {
+          product_id: {
+            type: 'string',
+            description: 'The product ID to add (e.g. p1, p2, p3)',
+          },
+          portion: {
+            type: 'string',
+            description: "Portion size (e.g. '半份' for half, '整份' for full)",
+          },
+          flavor: {
+            type: 'string',
+            description:
+              "Flavor option (e.g. '原味' for original, '香辣腌制' for spicy marinated)",
+          },
+          spicy: {
+            type: 'string',
+            description:
+              "Spice level (e.g. '微辣' mild, '中辣' medium, '重辣' hot, '超级辣' super hot)",
+          },
+          quantity: {
+            type: 'number',
+            description: 'Quantity to add (default 1)',
+          },
+        },
+        required: ['product_id'],
+      },
+    },
+    {
+      type: 'function',
+      name: 'update_cart_quantity',
+      description:
+        'Update the quantity of an item in the shopping cart. Use positive delta to increase, negative to decrease. When quantity reaches 0 or below, the item is removed from the cart.',
+      parameters: {
+        type: 'object',
+        properties: {
+          uid: {
+            type: 'string',
+            description: 'The unique ID of the cart item to update',
+          },
+          delta: {
+            type: 'number',
+            description:
+              'Quantity change (positive to add, negative to reduce). Use -1 to reduce by 1.',
+          },
+        },
+        required: ['uid', 'delta'],
+      },
+    },
+    {
+      type: 'function',
+      name: 'get_cart',
+      description:
+        'Get the current contents of the shopping cart, including all items, quantities, and total price.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  ],
+}

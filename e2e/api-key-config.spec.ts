@@ -160,16 +160,16 @@ test.describe('HARNESSROUTER_API_KEY 临时配置入口 - E2E 验收测试', () 
 
   // ── REQ-004: 前端 Key 传递与服务端 fallback 逻辑 ─────────
 
-  test('API-KEY-011: 配置 Key 后发送消息，请求 Header 包含 X-HarnessRouter-API-Key', async ({ page }) => {
-    // Mock /api/chat 接口，捕获请求 Header
+  test('API-KEY-011: 配置 Key 后发送消息，请求 Header 包含 Authorization Bearer Key', async ({ page }) => {
+    // Mock HarnessRouter API 接口，捕获请求 Header
     let capturedHeaders: Record<string, string> = {}
-    await page.route('**/api/chat*', async (route) => {
+    await page.route('**/v1/responses*', async (route) => {
       capturedHeaders = route.request().headers()
-      // 返回最小 SSE 响应
+      // 返回最小 SSE 响应（response.completed 事件）
       await route.fulfill({
         status: 200,
         contentType: 'text/event-stream',
-        body: ': connected\n\nevent: done\ndata: {"response_id":"resp_mock_test"}\n\n',
+        body: 'data: {"type":"response.completed","response":{"id":"resp_mock_test"}}\n\n',
       })
     })
 
@@ -182,18 +182,18 @@ test.describe('HARNESSROUTER_API_KEY 临时配置入口 - E2E 验收测试', () 
     const msgInput = page.getByPlaceholder(/输入你想吃的|Type what you'd like/)
     await msgInput.fill('推荐一个锅底')
     await msgInput.press('Enter')
-    // 等待请求发出并捕获 Header
-    await expect.poll(() => capturedHeaders['x-harnessrouter-api-key'] || '').toBe('header-test-key-abc')
+    // 等待请求发出并捕获 Header，验证 Authorization Bearer 头
+    await expect.poll(() => capturedHeaders['authorization'] || '').toBe('Bearer header-test-key-abc')
   })
 
-  test('API-KEY-012: 未配置 Key 时发送消息，请求 Header 不包含 X-HarnessRouter-API-Key', async ({ page }) => {
-    let capturedHeaders: Record<string, string> = {}
-    await page.route('**/api/chat*', async (route) => {
-      capturedHeaders = route.request().headers()
+  test('API-KEY-012: 未配置 Key 时发送消息，显示配置提示且不发起 API 请求', async ({ page }) => {
+    let requestMade = false
+    await page.route('**/v1/responses*', async (route) => {
+      requestMade = true
       await route.fulfill({
         status: 200,
         contentType: 'text/event-stream',
-        body: ': connected\n\nevent: done\ndata: {"response_id":"resp_mock_test"}\n\n',
+        body: 'data: {"type":"response.completed","response":{"id":"resp_mock_test"}}\n\n',
       })
     })
 
@@ -202,9 +202,9 @@ test.describe('HARNESSROUTER_API_KEY 临时配置入口 - E2E 验收测试', () 
     const msgInput = page.getByPlaceholder(/输入你想吃的|Type what you'd like/)
     await msgInput.fill('推荐一个锅底')
     await msgInput.press('Enter')
-    // 等待请求发出
-    await expect.poll(() => Object.keys(capturedHeaders).length > 0).toBe(true)
-    // Header 中不应包含 Key
-    expect(capturedHeaders['x-harnessrouter-api-key']).toBeUndefined()
+    // 应显示配置提示而非笼统错误
+    await expect(page.getByText(/请先配置 HARNESSROUTER_API_KEY|Please configure HARNESSROUTER_API_KEY first/)).toBeVisible({ timeout: 5000 })
+    // 不应发起 API 请求
+    expect(requestMade).toBe(false)
   })
 })

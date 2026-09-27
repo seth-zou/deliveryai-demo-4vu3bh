@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import i18next from 'i18next'
 import { products } from '@/data/menu'
 import type { AppAction, CartItem, AppState } from '@/types'
+import { chatWithHarness, type ProductStateContext, type SSEEvent } from '@/lib/harness-adapter'
 
 export type ChatRole = 'user' | 'assistant'
 
@@ -21,8 +22,6 @@ export interface AIAssistantState {
   error: string | null
 }
 
-const SERVER_URL = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:3001'
-
 const API_KEY_STORAGE_KEY = 'harnessrouter_api_key'
 
 /** 从 localStorage 读取前端配置的 API Key（演示用途） */
@@ -38,7 +37,8 @@ export { API_KEY_STORAGE_KEY }
 
 /**
  * AI 助理对话状态管理 hook。
- * 负责与产品服务端通信（SSE 流式），接收 AI 响应和 tool action。
+ * 前端直连 HarnessRouter Cloud API（https://api.harnessrouter.ai/v1/responses），
+ * 解析 SSE 流式响应，执行 tool action，支持多轮 tool call。
  * AI 操作通过 dispatch 转换为 product action，共享同一 orderReducer 状态。
  */
 export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppAction>) {
@@ -48,7 +48,7 @@ export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppActi
   const responseIdRef = useRef<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  const buildContext = useCallback(() => {
+  const buildContext = useCallback((): ProductStateContext => {
     return {
       products: products.map((p) => ({
         id: p.id,
@@ -101,81 +101,43 @@ export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppActi
     const abortController = new AbortController()
     abortControllerRef.current = abortController
 
+    // 检查 API Key 是否已配置
+    const apiKey = getStoredApiKey()
+    if (!apiKey) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === aiMsgId
+            ? { ...m, streaming: false, content: i18next.t('ai.error_no_key'), error: true }
+            : m
+        )
+      )
+      setError(i18next.t('ai.error_no_key'))
+      setIsLoading(false)
+      abortControllerRef.current = null
+      return
+    }
+
     try {
-      const apiKey = getStoredApiKey()
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (apiKey) {
-        headers['X-HarnessRouter-API-Key'] = apiKey
-      }
-
-      const response = await fetch(`${SERVER_URL}/api/chat`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          message: text,
-          feature_key: 'smart_order_assistant',
-          previous_response_id: responseIdRef.current || undefined,
-          context: buildContext(),
-          session_id: responseIdRef.current || undefined,
-        }),
-        signal: abortController.signal,
-      })
-
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`)
-      }
-
-      if (!response.body) {
-        throw new Error('No response body')
-      }
-
-      // 解析 SSE 流
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
       let accumulatedText = ''
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-
-        // SSE 事件以双换行分隔
-        const events = buffer.split('\n\n')
-        buffer = events.pop() || ''
-
-        for (const eventBlock of events) {
-          const lines = eventBlock.split('\n')
-          let eventType = 'message'
-          let eventData = ''
-
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              eventType = line.slice(7)
-            } else if (line.startsWith('data: ')) {
-              eventData = line.slice(6)
-            }
-          }
-
-          if (!eventData) continue
-
-          let parsed: Record<string, unknown>
-          try {
-            parsed = JSON.parse(eventData)
-          } catch {
-            continue
-          }
-
-          if (eventType === 'text_delta') {
-            const delta = String(parsed.content || '')
+      const result = await chatWithHarness({
+        message: text,
+        apiKey,
+        previousResponseId: responseIdRef.current || undefined,
+        context: buildContext(),
+        signal: abortController.signal,
+        onEvent: (event: SSEEvent) => {
+          if (event.event === 'text_delta') {
+            const delta = String(event.data.content || '')
             accumulatedText += delta
             setMessages((prev) =>
-              prev.map((m) => m.id === aiMsgId ? { ...m, content: accumulatedText } : m)
+              prev.map((m) => (m.id === aiMsgId ? { ...m, content: accumulatedText } : m))
             )
-          } else if (eventType === 'tool_result') {
+          } else if (event.event === 'tool_result') {
             // 执行前端 action（如果有）
-            const action = parsed.action as { type: string; payload: Record<string, unknown> } | undefined
+            const action = event.data.action as
+              | { type: string; payload: Record<string, unknown> }
+              | undefined
             if (action) {
               if (action.type === 'ADD_CART') {
                 const item = action.payload as unknown as CartItem
@@ -186,36 +148,104 @@ export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppActi
                 dispatch({ type: 'CHANGE_QTY', uid, delta })
               }
             }
-          } else if (eventType === 'done') {
-            responseIdRef.current = String(parsed.response_id || '')
-            const traceUrl = parsed.trace_url as string | undefined
-            setMessages((prev) =>
-              prev.map((m) => m.id === aiMsgId ? { ...m, streaming: false, traceUrl } : m)
-            )
-          } else if (eventType === 'error') {
-            const errorMsg = String(parsed.message || 'Assistant error')
-            setMessages((prev) =>
-              prev.map((m) => m.id === aiMsgId ? { ...m, streaming: false, content: accumulatedText || errorMsg, error: true } : m)
-            )
-            setError(errorMsg)
           }
-        }
-      }
+        },
+      })
 
-      // 如果流结束时 AI 消息仍为 streaming，标记为完成
+      responseIdRef.current = result.responseId || null
+
+      // 标记 AI 消息为完成
       setMessages((prev) =>
-        prev.map((m) => m.id === aiMsgId && m.streaming ? { ...m, streaming: false } : m)
+        prev.map((m) =>
+          m.id === aiMsgId
+            ? { ...m, streaming: false, traceUrl: result.traceUrl }
+            : m
+        )
       )
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         // 用户取消，标记为已停止
         setMessages((prev) =>
-          prev.map((m) => m.id === aiMsgId && m.streaming ? { ...m, streaming: false, content: m.content + (m.content ? '\n' : '') + i18next.t('ai.stopped') } : m)
+          prev.map((m) =>
+            m.id === aiMsgId && m.streaming
+              ? {
+                  ...m,
+                  streaming: false,
+                  content:
+                    m.content +
+                    (m.content ? '\n' : '') +
+                    i18next.t('ai.stopped'),
+                }
+              : m
+          )
         )
-      } else {
-        const errorMsg = err instanceof Error ? err.message : 'Network error'
+      } else if (err instanceof Error && err.message === 'NO_API_KEY') {
         setMessages((prev) =>
-          prev.map((m) => m.id === aiMsgId && m.streaming ? { ...m, streaming: false, content: i18next.t('ai.error'), error: true } : m)
+          prev.map((m) =>
+            m.id === aiMsgId && m.streaming
+              ? { ...m, streaming: false, content: i18next.t('ai.error_no_key'), error: true }
+              : m
+          )
+        )
+        setError(i18next.t('ai.error_no_key'))
+      } else if (
+        err instanceof Error &&
+        (err as Error & { status?: number }).status === 401
+      ) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId && m.streaming
+              ? { ...m, streaming: false, content: i18next.t('ai.error_invalid_key'), error: true }
+              : m
+          )
+        )
+        setError(i18next.t('ai.error_invalid_key'))
+      } else if (
+        err instanceof Error &&
+        (err as Error & { status?: number }).status === 403
+      ) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId && m.streaming
+              ? { ...m, streaming: false, content: i18next.t('ai.error_invalid_key'), error: true }
+              : m
+          )
+        )
+        setError(i18next.t('ai.error_invalid_key'))
+      } else if (
+        err instanceof Error &&
+        (err.message.includes('Failed to fetch') ||
+          err.message.includes('NetworkError') ||
+          err.message.includes('network'))
+      ) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId && m.streaming
+              ? { ...m, streaming: false, content: i18next.t('ai.error_network'), error: true }
+              : m
+          )
+        )
+        setError(i18next.t('ai.error_network'))
+      } else if (err instanceof Error && (err as Error & { status?: number }).status) {
+        // 其他 HTTP 错误（5xx 等）
+        const status = (err as Error & { status?: number }).status!
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId && m.streaming
+              ? { ...m, streaming: false, content: i18next.t('ai.error'), error: true }
+              : m
+          )
+        )
+        setError(`API error ${status}`)
+      } else {
+        // 通用错误
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId && m.streaming
+              ? { ...m, streaming: false, content: i18next.t('ai.error'), error: true }
+              : m
+          )
         )
         setError(errorMsg)
       }
@@ -228,18 +258,6 @@ export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppActi
   const stopGeneration = useCallback(async () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
-    }
-    // 也通知服务端取消
-    if (responseIdRef.current) {
-      try {
-        await fetch(`${SERVER_URL}/api/chat/cancel`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: responseIdRef.current }),
-        })
-      } catch {
-        // 取消请求失败不阻塞用户
-      }
     }
   }, [])
 
