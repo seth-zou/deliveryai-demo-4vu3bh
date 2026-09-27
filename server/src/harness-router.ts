@@ -4,8 +4,8 @@
  * 产品服务端通过此适配器调用 HarnessRouter Cloud API（UHP 模式），
  * 实现 AI Agent 能力。浏览器前端不直接调用 HarnessRouter API。
  *
- * 安全要求：API Key 仅从环境变量 HARNESSROUTER_API_KEY 读取，
- * 不出现在源码、日志或返回给前端的响应中。
+ * 安全要求：API Key 优先从前端请求 Header 读取（演示用途），fallback 到环境变量 HARNESSROUTER_API_KEY。
+ * 前端明文存储仅限演示场景，不适用于生产环境。
  */
 
 import { readFileSync } from 'node:fs'
@@ -16,7 +16,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const HARNESSROUTER_BASE_URL = process.env.HARNESSROUTER_BASE_URL || 'https://api.harnessrouter.ai'
 
-function getApiKey(): string {
+function getApiKey(externalKey?: string): string {
+  // 前端传入的 Key 优先（演示用途），fallback 到服务端环境变量
+  if (externalKey) return externalKey
   return process.env.HARNESSROUTER_API_KEY || ''
 }
 
@@ -336,6 +338,8 @@ export interface ChatOptions {
   previousResponseId?: string
   context: ProductStateContext
   signal?: AbortSignal
+  /** 前端传入的 API Key（演示用途），优先于环境变量 */
+  apiKey?: string
   /** SSE 事件回调，每解析出一个事件调用一次 */
   onEvent: (event: SSEEvent) => void
 }
@@ -345,8 +349,9 @@ export interface ChatOptions {
  * 处理流式响应、tool call 执行和多轮调用。
  */
 export async function chatWithHarness(opts: ChatOptions): Promise<{ responseId: string; traceUrl?: string }> {
-  if (!getApiKey()) {
-    throw new Error('HARNESSROUTER_API_KEY is not configured')
+  const apiKey = getApiKey(opts.apiKey)
+  if (!apiKey) {
+    throw new Error('请先配置 HARNESSROUTER_API_KEY')
   }
 
   const harnessId = getHarnessId(opts.featureKey)
@@ -379,7 +384,7 @@ export async function chatWithHarness(opts: ChatOptions): Promise<{ responseId: 
     const response = await fetch(`${HARNESSROUTER_BASE_URL}/v1/responses`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${getApiKey()}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -533,7 +538,7 @@ export async function chatWithHarness(opts: ChatOptions): Promise<{ responseId: 
       const followUpResponse = await fetch(`${HARNESSROUTER_BASE_URL}/v1/responses`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${getApiKey()}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(followUpBody),
@@ -644,14 +649,15 @@ export async function chatWithHarness(opts: ChatOptions): Promise<{ responseId: 
 /**
  * 取消正在进行的 HarnessRouter 响应
  */
-export async function cancelHarnessResponse(sessionId: string): Promise<void> {
-  if (!getApiKey()) {
-    throw new Error('HARNESSROUTER_API_KEY is not configured')
+export async function cancelHarnessResponse(sessionId: string, apiKey?: string): Promise<void> {
+  const key = getApiKey(apiKey)
+  if (!key) {
+    throw new Error('请先配置 HARNESSROUTER_API_KEY')
   }
   await fetch(`${HARNESSROUTER_BASE_URL}/v1/sessions/${encodeURIComponent(sessionId)}/cancel`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${getApiKey()}`,
+      'Authorization': `Bearer ${key}`,
       'Content-Type': 'application/json',
     },
   })

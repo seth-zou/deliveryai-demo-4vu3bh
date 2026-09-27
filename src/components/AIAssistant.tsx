@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bot, Send, Sparkles, Square, Trash2, X, RotateCcw } from 'lucide-react'
+import { Bot, Key, Eye, EyeOff, Send, Sparkles, Square, Trash2, X, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useAIAssistant, type ChatMessage } from '@/hooks/useAIAssistant'
+import { useAIAssistant, API_KEY_STORAGE_KEY, type ChatMessage } from '@/hooks/useAIAssistant'
 import type { AppAction, AppState } from '@/types'
 
 interface AIAssistantProps {
@@ -15,8 +15,13 @@ export function AIAssistant({ state, dispatch, visible }: AIAssistantProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
+  const [showConfig, setShowConfig] = useState(false)
+  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [isKeyConfigured, setIsKeyConfigured] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const configRef = useRef<HTMLDivElement>(null)
 
   const {
     messages,
@@ -43,6 +48,71 @@ export function AIAssistant({ state, dispatch, visible }: AIAssistantProps) {
   useEffect(() => {
     if (!visible) setOpen(false)
   }, [visible])
+
+  // 初始化时检查 localStorage 中是否已配置 API Key
+  useEffect(() => {
+    try {
+      setIsKeyConfigured(!!localStorage.getItem(API_KEY_STORAGE_KEY))
+    } catch {
+      setIsKeyConfigured(false)
+    }
+  }, [showConfig])
+
+  // 点击外部区域或 ESC 键关闭配置浮层
+  useEffect(() => {
+    if (!showConfig) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (configRef.current && !configRef.current.contains(e.target as Node)) {
+        setShowConfig(false)
+      }
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowConfig(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [showConfig])
+
+  // 打开配置浮层时预填已保存的 Key
+  const handleOpenConfig = () => {
+    try {
+      const saved = localStorage.getItem(API_KEY_STORAGE_KEY) || ''
+      setApiKeyInput(saved)
+    } catch {
+      setApiKeyInput('')
+    }
+    setShowApiKey(false)
+    setShowConfig(true)
+  }
+
+  // 保存 API Key
+  const handleSaveApiKey = () => {
+    const trimmed = apiKeyInput.trim()
+    if (!trimmed) return
+    try {
+      localStorage.setItem(API_KEY_STORAGE_KEY, trimmed)
+      setIsKeyConfigured(true)
+    } catch {
+      // localStorage 不可用时忽略
+    }
+    setShowConfig(false)
+  }
+
+  // 清除 API Key
+  const handleClearApiKey = () => {
+    try {
+      localStorage.removeItem(API_KEY_STORAGE_KEY)
+    } catch {
+      // 忽略
+    }
+    setIsKeyConfigured(false)
+    setApiKeyInput('')
+    setShowConfig(false)
+  }
 
   if (!visible) return null
 
@@ -101,6 +171,63 @@ export function AIAssistant({ state, dispatch, visible }: AIAssistantProps) {
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                {/* API Key 配置入口（演示用途） */}
+                <div className="relative" ref={configRef}>
+                  <button
+                    onClick={handleOpenConfig}
+                    aria-label={t('ai.api_key_config')}
+                    title={isKeyConfigured ? t('ai.api_key_configured') : t('ai.api_key_not_configured')}
+                    className={`rounded-full p-2 transition hover:bg-rice-200 dark:hover:bg-charcoal-800 ${
+                      isKeyConfigured
+                        ? 'text-green-500 hover:text-green-600 dark:text-green-400 dark:hover:text-green-500'
+                        : 'text-charcoal-500 hover:text-chili-500 dark:text-rice-200/60 dark:hover:text-chili-400'
+                    }`}
+                  >
+                    <Key size={16} />
+                    {isKeyConfigured && (
+                      <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-green-500 dark:bg-green-400" />
+                    )}
+                  </button>
+                  {/* API Key 配置浮层 */}
+                  {showConfig && (
+                    <div className="absolute right-0 top-full z-10 mt-1 w-64 rounded-2xl border border-charcoal-900/10 bg-white p-4 shadow-float dark:border-rice-50/10 dark:bg-charcoal-800 dark:shadow-dark-float">
+                      <p className="mb-2 text-xs font-semibold text-charcoal-900 dark:text-rice-50">{t('ai.api_key_config')}</p>
+                      <div className="relative">
+                        <input
+                          type={showApiKey ? 'text' : 'password'}
+                          value={apiKeyInput}
+                          onChange={(e) => setApiKeyInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveApiKey() }}
+                          placeholder={t('ai.api_key_placeholder')}
+                          className="w-full rounded-xl border border-charcoal-900/10 bg-rice-50 px-3 py-2 pr-9 text-sm text-charcoal-900 outline-none transition focus:border-chili-500/30 focus:ring-2 focus:ring-chili-50 dark:border-rice-50/10 dark:bg-charcoal-700 dark:text-rice-50 dark:focus:border-chili-400/30 dark:focus:ring-chili-400/10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey((v) => !v)}
+                          aria-label={showApiKey ? 'Hide' : 'Show'}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-charcoal-500 hover:text-chili-500 dark:text-rice-200/60 dark:hover:text-chili-400"
+                        >
+                          {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                      <div className="mt-3 flex items-center gap-2">
+                        <button
+                          onClick={handleSaveApiKey}
+                          disabled={!apiKeyInput.trim()}
+                          className="flex-1 rounded-xl bg-chili-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-chili-600 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-chili-400 dark:hover:bg-chili-500"
+                        >
+                          {t('ai.api_key_save')}
+                        </button>
+                        <button
+                          onClick={handleClearApiKey}
+                          className="rounded-xl border border-charcoal-900/10 px-3 py-1.5 text-xs font-semibold text-charcoal-500 transition hover:bg-rice-200 hover:text-chili-500 dark:border-rice-50/10 dark:text-rice-200/60 dark:hover:bg-charcoal-700 dark:hover:text-chili-400"
+                        >
+                          {t('ai.api_key_clear')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 {messages.length > 0 && (
                   <button
                     onClick={clearChat}

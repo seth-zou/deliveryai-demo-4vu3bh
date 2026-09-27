@@ -55,6 +55,9 @@ export function createChatRouter(router: Router): Router {
       // 立即写入 SSE 注释行，flush headers
       res.write(': connected\n\n')
 
+      // 从请求 Header 读取前端传入的 API Key（演示用途，优先于环境变量）
+      const clientApiKey = req.get('X-HarnessRouter-API-Key')
+
       // AbortController 支持取消
       const abortController = new AbortController()
       res.on("close", () => {
@@ -69,6 +72,7 @@ export function createChatRouter(router: Router): Router {
         previousResponseId: previous_response_id,
         context,
         signal: abortController.signal,
+        apiKey: clientApiKey,
         onEvent: (event: SSEEvent) => {
           res.write(`event: ${event.event}\n`)
           res.write(`data: ${JSON.stringify(event.data)}\n\n`)

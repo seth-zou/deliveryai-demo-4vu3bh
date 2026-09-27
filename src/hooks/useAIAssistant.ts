@@ -23,6 +23,19 @@ export interface AIAssistantState {
 
 const SERVER_URL = import.meta.env.VITE_AI_SERVER_URL || 'http://localhost:3001'
 
+const API_KEY_STORAGE_KEY = 'harnessrouter_api_key'
+
+/** 从 localStorage 读取前端配置的 API Key（演示用途） */
+function getStoredApiKey(): string | null {
+  try {
+    return localStorage.getItem(API_KEY_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+export { API_KEY_STORAGE_KEY }
+
 /**
  * AI 助理对话状态管理 hook。
  * 负责与产品服务端通信（SSE 流式），接收 AI 响应和 tool action。
@@ -89,9 +102,15 @@ export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppActi
     abortControllerRef.current = abortController
 
     try {
+      const apiKey = getStoredApiKey()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (apiKey) {
+        headers['X-HarnessRouter-API-Key'] = apiKey
+      }
+
       const response = await fetch(`${SERVER_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           message: text,
           feature_key: 'smart_order_assistant',
