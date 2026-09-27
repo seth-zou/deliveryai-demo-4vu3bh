@@ -12,11 +12,14 @@
 产品服务端 (Express :3001)
   ↕ HTTPS
 HarnessRouter Cloud (api.harnessrouter.ai)
+  ↕ HTTPS
+OpenRouter (BYOK Provider Key)
 ```
 
 - **浏览器前端**：UI 界面、对话交互、SSE 流式接收、tool action 分发到 orderReducer
 - **产品服务端**：HarnessRouter 适配器、API Key 保管、SSE 转发、tool call 执行、Session 管理
 - **HarnessRouter Cloud**：Agent 运行时、模型调用、Trace 追踪
+- **OpenRouter**：BYOK 模型推理 Provider
 
 **安全要求**：API Key 仅通过服务端环境变量 `HARNESSROUTER_API_KEY` 读取，前端零接触。
 
@@ -27,17 +30,19 @@ HarnessRouter Cloud (api.harnessrouter.ai)
 | 属性 | 值 |
 |------|------|
 | Workspace ID | `org.zoumzlzoumzl.gmail.com__hr_default` |
-| Harness ID | `chrn_68f0b1eb42e0423ca54783ab9a73eb98` |
+| Harness ID | `chrn_776c21a9bdb747f899a18d1de794fa14` |
 | Harness Name | `Smart Order Assistant` |
-| Base | `codex` |
-| Default Model | `gpt-5.4-mini` |
+| Base | `opencode` |
+| Default Model | `nemotron-3.5-lightning` |
 | Feature Key | `smart_order_assistant` |
+| Provider | OpenRouter (BYOK) |
+| Provider Key Env | `OPENROUTER_API_KEY` (configured in harness env on HarnessRouter Cloud) |
 
 ### 3.2 功能映射关系
 
 | Feature Key | Harness ID | 功能 |
 |-------------|-----------|------|
-| `smart_order_assistant` | `chrn_68f0b1eb42e0423ca54783ab9a73eb98` | 智能点单助理 |
+| `smart_order_assistant` | `chrn_776c21a9bdb747f899a18d1de794fa14` | 智能点单助理 |
 
 ### 3.3 配置文件位置
 
@@ -63,8 +68,8 @@ HarnessRouter Cloud (api.harnessrouter.ai)
 | 文件 | 职责 |
 |------|------|
 | `server/src/harness-router.ts` | HarnessRouter 适配器：API 调用、SSE 解析、tool call 执行、Session 管理、取消操作 |
-| `server/src/chat-routes.ts` | Express 对话路由：POST /api/chat、POST /api/chat/cancel、GET /api/chat/config |
-| `server/src/index.ts` | Express 入口（更新：注册 /api 路由） |
+| `server/src/chat-routes.ts` | Express 对话路由：POST /api/chat (SSE)、POST /api/chat/cancel、GET /api/chat/config |
+| `server/src/index.ts` | Express 入口（注册 /api 路由） |
 | `server/harnesses/smart-order-assistant.json` | Harness 配置数据文件 |
 | `server/.env.example` | 环境变量模板（不含真实 Key） |
 | `server/src/__tests__/harness-router.test.ts` | 适配器单元测试（30 个用例） |
@@ -82,8 +87,8 @@ HarnessRouter Cloud (api.harnessrouter.ai)
 
 | 文件 | 职责 |
 |------|------|
-| `server/src/__tests__/harness-router.test.ts` | 适配器单元测试（mock HarnessRouter API） |
-| `e2e/ai-assistant.spec.ts` | E2E 验收测试（浮窗显示、面板交互、深色模式、业务不受影响） |
+| `server/src/__tests__/harness-router.test.ts` | 适配器单元测试（mock HarnessRouter API，30 个用例） |
+| `e2e/ai-assistant.spec.ts` | E2E 验收测试（11 个用例：9 个 UI 验收 + 2 个真实 HarnessRouter 集成测试） |
 
 ## 5. API 路由
 
@@ -108,6 +113,7 @@ HarnessRouter Cloud (api.harnessrouter.ai)
 ```
 
 **响应**：SSE 事件流
+- `: connected` — 初始连接确认
 - `event: text_delta` — AI 文本增量
 - `event: tool_result` — Tool 执行结果（含前端 action）
 - `event: done` — 完成事件（含 response_id 和 trace_url）
@@ -130,12 +136,16 @@ HarnessRouter Cloud (api.harnessrouter.ai)
 | `HARNESSROUTER_API_KEY` | HarnessRouter Cloud API Key | `server/.env` |
 | `PORT` | 服务端端口（默认 3001） | 可选 |
 
-### Provider Key（BYOK）
+### BYOK Provider Key (OpenRouter)
 
-HarnessRouter Cloud 免费试用覆盖 Agent 工作和内存，但模型调用需要自带 Provider Key（BYOK）。
+OpenRouter API Key 通过 HarnessRouter Cloud harness env 配置（不在 server/.env 中）：
 
-- `OPENAI_API_KEY` 由 HarnessRouter 运行时管理，不能通过 harness env 覆盖
-- 需要在 HarnessRouter 控制台的 "Bring Your Own Key" 中配置 Provider Key
+```bash
+curl -X PUT -H "Authorization: Bearer $HARNESSROUTER_API_KEY" \
+  -H "Content-Type: application/json" \
+  "https://api.harnessrouter.ai/v1/harnesses/chrn_776c21a9bdb747f899a18d1de794fa14" \
+  -d '{"name":"Smart Order Assistant","base":"opencode","env":{"OPENROUTER_API_KEY":"sk-or-..."}}'
+```
 
 ### 前端环境变量
 
@@ -169,38 +179,49 @@ cd server && npm run build && npm start
 npm run build
 ```
 
-## 8. 后续扩展方式
+## 8. 验证结果
 
-### 8.1 新增 Harness
+| 验证项 | 结果 |
+|--------|------|
+| 前端 TypeScript 编译 (`tsc -b`) | ✅ 通过 |
+| ESLint (`max-warnings 0`) | ✅ 通过 |
+| 服务端 TypeScript 编译 (`tsc --noEmit`) | ✅ 通过 |
+| Vite 生产构建 (`vite build`) | ✅ 通过 |
+| 适配器单元测试 | ✅ 30/30 通过 |
+| AI 助理 E2E 测试（含真实集成） | ✅ 11/11 通过 |
+| 现有 E2E 测试（dark-mode + super-spicy） | ✅ 30/30 通过 |
+| 真实 HarnessRouter 对话 | ✅ AI 成功返回中文回复 |
+| API Key 安全检查 (`grep -r "sk-hr-" src/ e2e/`) | ✅ 无结果 |
+| 代码推送 | ✅ 已推送到 `feat/smart-order-assistant-q185` |
+
+## 9. 后续扩展方式
+
+### 9.1 新增 Harness
 
 1. 通过 `POST /v1/harnesses` 创建新 Harness
 2. 在 `server/harnesses/` 下创建新的 JSON 配置文件
 3. 在 `harness-router.ts` 的 `FEATURE_HARNESS_MAP` 中添加映射
 4. 前端新增对应的 feature_key 调用
 
-### 8.2 修改 Tools/指令
+### 9.2 修改 Tools/指令
 
 1. 编辑 `server/harnesses/smart-order-assistant.json` 中的 `tools` 或 `system_prompt`
 2. 如新增 tool，在 `harness-router.ts` 的 `executeToolCall` 函数中添加对应 handler
 3. 重启服务端生效
 
-### 8.3 切换模型
+### 9.3 切换模型
 
 编辑 `server/harnesses/smart-order-assistant.json` 中的 `default_model` 字段。
 可用模型列表通过 `GET /v1/models` 获取。
 
-## 9. 已知限制
+### 9.4 切换 Provider
 
-1. **Provider Key 未配置**：HarnessRouter Cloud 免费试用不含模型调用费用，需在控制台配置 BYOK Provider Key 才能进行真实 AI 对话。未配置时 API 返回 `billing_error`。
-2. **E2E 真实对接测试跳过**：`e2e/ai-assistant.spec.ts` 中的完整 AI 对话路径测试标记为 `test.skip`，需配置 Provider Key 后移除 skip。
-3. **无持久化**：对话会话通过 HarnessRouter Session 在服务端保持，不做产品侧数据库持久化或跨设备同步。
-4. **匿名使用**：产品无认证体系，AI 助理沿用匿名状态。
+1. 在 HarnessRouter Cloud 创建新 base 的 harness（如 codex/claude/hermes）
+2. 更新 `server/harnesses/smart-order-assistant.json` 中的 `harness_id` 和 `base`
+3. 在 harness env 中配置对应的 Provider Key
 
-## 10. 安全检查
+## 10. 已知限制
 
-- [x] API Key 仅通过 `HARNESSROUTER_API_KEY` 环境变量读取
-- [x] `.env` 已加入 `.gitignore`
-- [x] 前端代码中无 `sk-hr-` 前缀字符串
-- [x] 服务端日志不记录 API Key
-- [x] 浏览器不直接调用 `api.harnessrouter.ai`
-- [x] `grep -r "sk-hr-" src/ e2e/` 无结果
+1. **OpenRouter 免费模型限制**：HarnessRouter 模型列表不包含 `:free` 后缀的免费模型，所有模型路由到 OpenRouter 付费端点。当前使用 `nemotron-3.5-lightning` 模型，OpenRouter 账户需有余额。
+2. **无持久化**：对话会话通过 HarnessRouter Session 在服务端保持，不做产品侧数据库持久化或跨设备同步。
+3. **匿名使用**：产品无认证体系，AI 助理沿用匿名状态。
