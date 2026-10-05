@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const CHROMIUM_PATH = process.env.PLAYWRIGHT_CHROMIUM_PATH || '/usr/bin/chromium-browser'
+const PORT = process.env.PLAYWRIGHT_PORT || '5173'
+const BASE_URL = `http://localhost:${PORT}`
 
 export default defineConfig({
   testDir: './e2e',
@@ -12,7 +14,7 @@ export default defineConfig({
   timeout: 30000,
   expect: { timeout: 10000 },
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: BASE_URL,
     trace: 'retain-on-failure',
     screenshot: 'on',
     headless: true,
@@ -25,7 +27,7 @@ export default defineConfig({
       cookies: [],
       origins: [
         {
-          origin: 'http://localhost:5173',
+          origin: BASE_URL,
           localStorage: [
             { name: 'theme', value: 'light' }
           ]
@@ -37,8 +39,8 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
+    command: `npm run dev -- --port ${PORT} --strictPort`,
+    url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
   },
