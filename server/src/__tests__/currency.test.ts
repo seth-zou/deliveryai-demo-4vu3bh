@@ -1,6 +1,6 @@
 import { it } from 'node:test'
 import assert from 'node:assert/strict'
-import { quoteAmounts, formatMoney, formatMinor, normalizeCurrency, isCurrencyCode } from '../../../shared/currency.js'
+import { quoteAmounts, formatMoney, formatMinor, normalizeCurrency, isCurrencyCode, portionPrice } from '../../../shared/currency.js'
 
 it('参考小计等于逐行舍入金额之和，而不是人民币小计直接换算', () => {
   assert.deepEqual(quoteAmounts([
@@ -51,4 +51,10 @@ it('数量按整行换算而不是逐份舍入，人民币小数不会累计误�
   assert.deepEqual(quote.lineAmounts, [2, 4])
   assert.equal(quote.subtotal, 6)
   assert.equal(quote.cny.subtotal, 42)
+})
+
+it('半份仍按人民币基价58%取整，并作为人民币价格参与报价', () => {
+  const quote = quoteAmounts([{ price: portionPrice(42, true), quantity: 2 }], 'USD')
+  assert.deepEqual([quote.cny.subtotal, quote.subtotal], [4800, 672])
+  assert.equal(formatMoney(portionPrice(42, false), 'CNY'), '¥42.00')
 })

@@ -48,6 +48,11 @@ export function formatMoney(cnyYuan: number, currency: CurrencyCode = 'CNY'): st
   return formatMinor(convertMinor(toMinor(cnyYuan), currency), currency)
 }
 
+/** Preserve the demo's existing CNY portion pricing before any currency conversion. */
+export function portionPrice(baseCny: number, halfPortion: boolean): number {
+  return halfPortion ? Math.round(baseCny * 0.58) : baseCny
+}
+
 /** Convert each CNY line before summing so displayed lines always add up. */
 export function quoteAmounts(items: readonly QuoteItem[], currency: CurrencyCode = 'CNY', applyDiscount = false): MoneyQuote {
   const cnyLineAmounts = items.map((item) => toMinor(item.price * item.quantity))
