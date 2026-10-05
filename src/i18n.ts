@@ -4,6 +4,20 @@ import { initReactI18next } from 'react-i18next'
 const resources = {
   zh: {
     translation: {
+      currency: {
+        label: '展示币种',
+        reference: '仅供参考',
+        rates: '演示汇率：1 CNY = 0.14 USD / 0.13 EUR / 1.10 HKD · 仅供参考',
+        actual_payable: '人民币实际应付',
+        settlement: '结算币种：CNY（人民币）',
+        actual_paid: '人民币实付金额',
+        reference_subtotal: '参考小计',
+        reference_discount: '参考优惠',
+        reference_payable: '参考应付',
+        reference_paid: '参考实付金额',
+        coupon: '菜品券参考：{{amount}}',
+        discount_rule: '参考门槛 {{threshold}}，参考优惠 {{amount}}；按人民币判断',
+      },
       common: {
         title: '沸点 · 火锅点单概念演示',
         meta_desc: '沸点火锅点单与门店履约概念演示，非官方产品',
@@ -270,6 +284,20 @@ const resources = {
   },
   en: {
     translation: {
+      currency: {
+        label: 'Display currency',
+        reference: 'For reference only',
+        rates: 'Demo rates: 1 CNY = 0.14 USD / 0.13 EUR / 1.10 HKD · For reference only',
+        actual_payable: 'Actual payment in CNY',
+        settlement: 'Settlement currency: CNY',
+        actual_paid: 'Amount paid in CNY',
+        reference_subtotal: 'Reference subtotal',
+        reference_discount: 'Reference discount',
+        reference_payable: 'Reference payable',
+        reference_paid: 'Reference amount paid',
+        coupon: 'Coupon reference: {{amount}}',
+        discount_rule: 'Reference threshold {{threshold}}, discount {{amount}}; eligibility based on CNY',
+      },
       common: {
         title: 'Boiling Point · Hotpot Ordering Demo',
         meta_desc: 'Boiling Point hotpot ordering and store fulfillment concept demo, unofficial',

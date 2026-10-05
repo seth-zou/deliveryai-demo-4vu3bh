@@ -4,16 +4,17 @@ import { AlertTriangle, Check, Flame, Plus, Search, Sparkles, Users } from 'luci
 import { categories, products } from '@/data/menu'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { money } from '@/lib/utils'
+import { formatMoney, portionPrice, type CurrencyCode } from '../../shared/currency'
 import type { CartItem, Product } from '@/types'
 
 interface MenuViewProps {
+  currency?: CurrencyCode
   diners: string[]
   soldOut: string[]
   onAdd: (item: CartItem) => void
 }
 
-export function MenuView({ diners, soldOut, onAdd }: MenuViewProps) {
+export function MenuView({ currency = 'CNY', diners, soldOut, onAdd }: MenuViewProps) {
   const { t } = useTranslation()
   const [category, setCategory] = useState('menu.cat.recommend')
   const [search, setSearch] = useState('')
@@ -58,13 +59,12 @@ export function MenuView({ diners, soldOut, onAdd }: MenuViewProps) {
 
   const addSelected = () => {
     if (!selected) return
-    const portionFactor = portion === 'menu.option.half' ? 0.58 : 1
     const specParts = [portion, flavor, spicy].filter(Boolean).map((key) => t(key))
     if (spicy === 'menu.option.super_spicy') {
       specParts.push(t('cart.confirmed_risk'))
     }
     const spec = specParts.join(' · ') || t('menu.standard')
-    onAdd({ uid: crypto.randomUUID(), productId: selected.id, name: t(selected.name), price: Math.round(selected.price * portionFactor), quantity: 1, image: selected.image, spec, orderedBy: diner })
+    onAdd({ uid: crypto.randomUUID(), productId: selected.id, name: t(selected.name), price: portionPrice(selected.price, portion === 'menu.option.half'), quantity: 1, image: selected.image, spec, orderedBy: diner })
     setSelected(null)
   }
 
@@ -78,13 +78,14 @@ export function MenuView({ diners, soldOut, onAdd }: MenuViewProps) {
         </div>
       </div>
 
-      <div className="sticky top-24 z-20 -mx-4 mt-5 bg-rice-100/95 px-4 pb-3 backdrop-blur dark:bg-charcoal-950/95 lg:mx-0 lg:px-0">
+      <div className="relative lg:sticky lg:top-36 z-20 -mx-4 mt-5 bg-rice-100/95 px-4 pb-3 backdrop-blur dark:bg-charcoal-950/95 lg:mx-0 lg:px-0">
         <div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal-500 dark:text-rice-200/40" size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('menu.search_placeholder')} className="h-12 w-full rounded-2xl border border-charcoal-900/5 bg-white pl-11 pr-4 text-sm text-charcoal-900 shadow-sm outline-none transition placeholder:text-charcoal-500 focus:border-chili-500/30 focus:ring-4 focus:ring-chili-50 dark:border-rice-50/10 dark:bg-charcoal-800 dark:text-rice-50 dark:placeholder:text-rice-200/40 dark:focus:border-chili-400/30 dark:focus:ring-chili-400/10" /></div>
         <div className="scrollbar-none mt-3 flex gap-2 overflow-x-auto pb-1">
           {categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${category === item ? 'bg-chili-500 text-white shadow-md dark:bg-chili-400' : 'bg-white text-charcoal-500 hover:text-chili-500 dark:bg-charcoal-800 dark:text-rice-200/60 dark:hover:text-chili-400'}`}>{t(item)}</button>)}
         </div>
       </div>
 
+      {currency !== 'CNY' && <p className="mt-3 text-xs text-charcoal-500 dark:text-rice-200/70">{t('currency.reference')}</p>}
       <div className="mt-3 grid gap-4 sm:grid-cols-2">
         {visible.map((product, index) => {
           const unavailable = soldOut.includes(product.id)
@@ -97,7 +98,7 @@ export function MenuView({ diners, soldOut, onAdd }: MenuViewProps) {
                 {unavailable && <span className="absolute inset-0 flex items-center justify-center bg-charcoal-900/70 text-lg font-extrabold text-white backdrop-blur-sm dark:bg-black/70">{t('menu.sold_out')}</span>}
                 {product.orderedCount && <span className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-bold text-chili-600 dark:bg-charcoal-900/90 dark:text-chili-400"><Check size={13} />{t('menu.ordered_table', { count: product.orderedCount })}</span>}
               </div>
-              <div className="p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-extrabold text-charcoal-900 dark:text-rice-50">{t(product.name)}</h3><p className="mt-1 line-clamp-1 text-xs text-charcoal-500 dark:text-rice-200/60">{t(product.description)}</p></div><Button size="icon" disabled={unavailable} onClick={() => openSpec(product)} className="h-10 w-10 shrink-0 rounded-full"><Plus size={18} /></Button></div><p className="mt-4 text-xl font-extrabold text-chili-500 dark:text-chili-400">{money(product.price)} <small className="text-xs font-medium text-charcoal-500 dark:text-rice-200/50">{t('menu.from')}</small></p></div>
+              <div className="p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-extrabold text-charcoal-900 dark:text-rice-50">{t(product.name)}</h3><p className="mt-1 line-clamp-1 text-xs text-charcoal-500 dark:text-rice-200/60">{t(product.description)}</p></div><Button size="icon" disabled={unavailable} onClick={() => openSpec(product)} className="h-10 w-10 shrink-0 rounded-full"><Plus size={18} /></Button></div><p className="mt-4 text-xl font-extrabold text-chili-500 dark:text-chili-400">{formatMoney(product.price, currency)} <small className="text-xs font-medium text-charcoal-500 dark:text-rice-200/50">{t('menu.from')}</small></p></div>
             </article>
           )
         })}
@@ -106,7 +107,8 @@ export function MenuView({ diners, soldOut, onAdd }: MenuViewProps) {
       <Dialog open={!!selected} onOpenChange={(open) => { if (!open) { setSelected(null); setShowRiskWarning(false) } }}>
         <DialogContent title={selected ? t(selected.name) : ''}>
           {selected && <>
-            <div className="mt-4 flex gap-4 rounded-2xl bg-white p-3 dark:bg-charcoal-800"><img src={selected.image} alt={t(selected.name)} className="h-24 w-24 rounded-xl object-cover" /><div><p className="text-sm leading-6 text-charcoal-500 dark:text-rice-200/70">{t(selected.description)}</p><p className="mt-2 text-xl font-extrabold text-chili-500 dark:text-chili-400">{money(selected.price)} <small className="text-xs font-medium text-charcoal-500 dark:text-rice-200/50">{t('menu.from')}</small></p></div></div>
+            <div className="mt-4 flex gap-4 rounded-2xl bg-white p-3 dark:bg-charcoal-800"><img src={selected.image} alt={t(selected.name)} className="h-24 w-24 rounded-xl object-cover" /><div><p className="text-sm leading-6 text-charcoal-500 dark:text-rice-200/70">{t(selected.description)}</p><p className="mt-2 text-xl font-extrabold text-chili-500 dark:text-chili-400">{formatMoney(portionPrice(selected.price, portion === 'menu.option.half'), currency)} <small className="text-xs font-medium text-charcoal-500 dark:text-rice-200/50">{t('menu.from')}</small></p></div></div>
+            {currency !== 'CNY' && <p className="mt-2 text-xs text-charcoal-500 dark:text-rice-200/70">{t('currency.reference')}</p>}
             {selected.options?.portion && <OptionRow label={t('menu.select_portion')} options={selected.options.portion} value={portion} onChange={setPortion} t={t} />}
             {selected.options?.flavor && <OptionRow label={t('menu.select_flavor')} options={selected.options.flavor} value={flavor} onChange={setFlavor} t={t} />}
             {selected.options?.spicy && <OptionRow label={t('menu.select_spicy')} icon={<Flame size={15} className="text-chili-500 dark:text-chili-400" />} options={selected.options.spicy} value={spicy} onChange={handleSpicyChange} t={t} />}
