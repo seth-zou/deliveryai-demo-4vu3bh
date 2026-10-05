@@ -7,7 +7,7 @@ const resources = {
       currency: {
         label: '展示币种',
         reference: '仅供参考',
-        rates: '演示汇率：1 CNY = 0.14 USD / 0.13 EUR / 1.10 HKD · 仅供参考',
+        rates: '演示汇率：1 CNY = {{usd}} USD / {{eur}} EUR / {{hkd}} HKD · 仅供参考',
         actual_payable: '人民币实际应付',
         settlement: '结算币种：CNY（人民币）',
         actual_paid: '人民币实付金额',
@@ -287,7 +287,7 @@ const resources = {
       currency: {
         label: 'Display currency',
         reference: 'For reference only',
-        rates: 'Demo rates: 1 CNY = 0.14 USD / 0.13 EUR / 1.10 HKD · For reference only',
+        rates: 'Demo rates: 1 CNY = {{usd}} USD / {{eur}} EUR / {{hkd}} HKD · For reference only',
         actual_payable: 'Actual payment in CNY',
         settlement: 'Settlement currency: CNY',
         actual_paid: 'Amount paid in CNY',

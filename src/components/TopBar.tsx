@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { tableAreas } from '@/data/menu'
 import type { ThemeMode } from '@/hooks/useTheme'
-import { CURRENCIES, formatMoney, isCurrencyCode, type CurrencyCode } from '../../shared/currency'
+import { CURRENCIES, DEMO_RATES, formatMoney, isCurrencyCode, type CurrencyCode } from '../../shared/currency'
 import type { ViewName } from '@/types'
 
 interface TopBarProps {
@@ -126,7 +126,7 @@ export function TopBar({ currency = 'CNY', onCurrency, table, view, serviceCount
                 {CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}
               </select>
             </label>
-            <p id="currency-rates" className="w-full min-w-0 leading-5 sm:w-auto sm:flex-1">{t('currency.rates')}</p>
+            <p id="currency-rates" className="w-full min-w-0 leading-5 sm:w-auto sm:flex-1">{t('currency.rates', { usd: DEMO_RATES.USD.toFixed(2), eur: DEMO_RATES.EUR.toFixed(2), hkd: DEMO_RATES.HKD.toFixed(2) })}</p>
           </div>
         </div>
       </header>

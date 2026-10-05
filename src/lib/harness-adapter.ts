@@ -6,6 +6,7 @@
  * 使用浏览器原生 fetch + ReadableStream，不依赖 Node.js 模块。
  */
 
+import { applyCartMutation } from '../../shared/cart'
 import { DEMO_RATES, portionPrice, formatMoney, formatMinor, normalizeCurrency, quoteAmounts, type CurrencyCode } from '../../shared/currency'
 import { harnessConfig, type ToolDefinition } from '@/data/harness-config'
 
@@ -275,15 +276,13 @@ export function executeToolCall(
 /** Keep this request's cart aligned with the actions sent to the order reducer. */
 function applyToolAction(context: ProductStateContext, action?: FrontendAction): void {
   if (action?.type === 'ADD_CART') {
-    const item = action.payload as unknown as CartItemContext
-    const same = context.cart.find((c) => c.productId === item.productId && c.spec === item.spec && c.orderedBy === item.orderedBy)
-    context.cart = same
-      ? context.cart.map((c) => c.uid === same.uid ? { ...c, quantity: c.quantity + 1 } : c)
-      : [...context.cart, item]
+    context.cart = applyCartMutation(context.cart, {
+      type: 'ADD_CART', item: action.payload as unknown as CartItemContext,
+    })
   } else if (action?.type === 'CHANGE_QTY') {
-    context.cart = context.cart
-      .map((c) => c.uid === action.payload.uid ? { ...c, quantity: c.quantity + Number(action.payload.delta) } : c)
-      .filter((c) => c.quantity > 0)
+    context.cart = applyCartMutation(context.cart, {
+      type: 'CHANGE_QTY', uid: action.payload.uid as string, delta: Number(action.payload.delta),
+    })
   }
 }
 
