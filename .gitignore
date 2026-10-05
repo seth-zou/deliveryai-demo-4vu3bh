@@ -15,3 +15,7 @@ server/.env.local
 test-results/
 .vercel
 .env*
+
+# Playwright E2E test reports & screenshots
+e2e-report/
+playwright-report/
