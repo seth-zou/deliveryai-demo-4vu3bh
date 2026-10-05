@@ -1,6 +1,6 @@
 # 多币种选择与参考金额展示
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
@@ -43,3 +43,5 @@ Status: ready-for-agent
 ## Further Notes
 
 2026-10-06：用户调用 implement-spec 授权实现；币种入口和记忆方式明确恢复原推荐，三处测试入口均获确认。按明细求和和上述固定演示值推进，均保留外币参考标识。
+
+2026-10-06：三张票据已合入本地集成分支 `feat/multi-currency`，功能与两轴审查完成。最终验收及既有回归失败的基线证据见 [verification.md](verification.md)。

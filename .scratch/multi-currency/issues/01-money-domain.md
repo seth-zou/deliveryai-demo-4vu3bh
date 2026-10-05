@@ -20,3 +20,7 @@
 首次 PAY 保存 `paymentSnapshot: { items, paidCny }`，明细逐项复制、实付以人民币元保存；后续履约、加单和重复 PAY 不覆盖首笔快照，RESET 清空。执行状态冒烟验证人民币200元订单实付180元、明细引用独立、履约后快照保持 submitted、后续订单再次 PAY 保留180元、RESET 快照为 null。页面消费快照和币种切换验证交由 UI 票既定页面入口覆盖。
 
 验证：服务端36测试通过（6金额 + 30既有）、`npm run typecheck` 与 `npm run build` 通过；根 `npm run build`、`npm run lint` 通过。服务端 rootDir 改为仓库根以编译共享模块，start 使用 `dist/server/src/index.js`；build 同时复制 harness 配置。编译后 `getHarnessConfig()` 与 `formatMoney(42,'USD')` 返回 `smart_order_assistant` / `USD 5.88`，`PORT=3107 npm start` 后 `/ping` 返回 pong。
+
+## Answer
+
+公开金额模块、人民币优惠与支付快照已实现并合入 `feat/multi-currency`。报价输出使用整数最小单位，外币小计按逐行舍入金额求和，支付快照保留首笔人民币实付和独立明细。金额接口、服务端构建和支付页面验收证据见上述 Comments，以及 [整体验收记录](../verification.md)。
