@@ -6,6 +6,7 @@
  * 使用浏览器原生 fetch + ReadableStream，不依赖 Node.js 模块。
  */
 
+import { DEMO_RATES, portionPrice, formatMoney, formatMinor, normalizeCurrency, quoteAmounts, type CurrencyCode } from '../../shared/currency'
 import { harnessConfig, type ToolDefinition } from '@/data/harness-config'
 
 // ── 类型定义 ──────────────────────────────────────────────
@@ -40,6 +41,9 @@ export interface ProductStateContext {
   soldOut: string[]
   diners: string[]
   language: string
+  currency?: CurrencyCode
+  pricingCurrency?: 'CNY'
+  demoRates?: typeof DEMO_RATES
 }
 
 /** tool call handler 执行结果中的前端 action */
@@ -71,7 +75,12 @@ export function getToolDefinitions(): ToolDefinition[] {
 
 // ── 系统指令构建 ──────────────────────────────────────────
 
+function describePrice(cnyPrice: number, currency: CurrencyCode): string {
+  return `人民币原价 CNY ${formatMoney(cnyPrice)}${currency === 'CNY' ? '' : `；参考 ${formatMoney(cnyPrice, currency)}（演示汇率，仅供参考）`}`
+}
+
 export function buildSystemInstructions(context: ProductStateContext): string {
+  const currency = normalizeCurrency(context.currency)
   const productList = context.products
     .map((p) => {
       const opts: string[] = []
@@ -80,20 +89,21 @@ export function buildSystemInstructions(context: ProductStateContext): string {
       if (p.options?.spicy?.length) opts.push(`辣度: ${p.options.spicy.join('/')}`)
       const optStr = opts.length ? ` [${opts.join(', ')}]` : ''
       const soldOut = context.soldOut.includes(p.id) ? ' (已售罄)' : ''
-      return `- ${p.id}: ${p.name} - ${p.description} ¥${p.price} 分类:${p.category}${optStr}${soldOut}`
+      return `- ${p.id}: ${p.name} - ${p.description} ${describePrice(p.price, currency)} 分类:${p.category}${optStr}${soldOut}`
     })
     .join('\n')
 
-  const cartList = context.cart.length
-    ? context.cart
-        .map((c) => `- uid:${c.uid} ${c.name} x${c.quantity} ¥${c.price} 规格:${c.spec} 下单人:${c.orderedBy}`)
-        .join('\n')
-    : '(空)'
+  const cartList = context.cart.length ? executeToolCall('get_cart', {}, context).output : '(空)'
 
   const langInstruction =
     context.language === 'en' ? 'Respond in English.' : '请用中文回复。'
 
   return `${harnessConfig.system_prompt}
+
+Display currency: ${currency}
+定价与结算币种: CNY；所有 price 字段为人民币元，加购不得写入外币。
+演示汇率（固定，仅供参考）: 1 CNY = ${DEMO_RATES.USD.toFixed(2)} USD, ${DEMO_RATES.EUR.toFixed(2)} EUR, ${DEMO_RATES.HKD.toFixed(2)} HKD
+本轮所有回复和工具沿用 ${currency}，外币金额为参考换算；以本轮指令为准，覆盖旧轮次币种。
 
 当前菜单数据：
 ${productList}
@@ -134,7 +144,7 @@ export function executeToolCall(
       const list = results
         .map((p) => {
           const soldOut = context.soldOut.includes(p.id) ? ' [已售罄]' : ''
-          return `${p.id}: ${p.name} - ${p.description} ¥${p.price}${soldOut}`
+          return `${p.id}: ${p.name} - ${p.description} ${describePrice(p.price, normalizeCurrency(context.currency))}${soldOut}`
         })
         .join('\n')
       return { output: `搜索结果：\n${list}` }
@@ -153,7 +163,7 @@ export function executeToolCall(
       const list = results
         .map((p) => {
           const soldOut = context.soldOut.includes(p.id) ? ' [已售罄]' : ''
-          return `${p.id}: ${p.name} - ${p.description} ¥${p.price}${soldOut}`
+          return `${p.id}: ${p.name} - ${p.description} ${describePrice(p.price, normalizeCurrency(context.currency))}${soldOut}`
         })
         .join('\n')
       return { output: `分类菜品：\n${list}` }
@@ -171,7 +181,7 @@ export function executeToolCall(
       if (product.options?.spicy?.length) opts.push(`辣度: ${product.options.spicy.join('/')}`)
       const soldOut = context.soldOut.includes(product.id) ? ' [已售罄]' : ''
       return {
-        output: `${product.id}: ${product.name} - ${product.description} ¥${product.price}${soldOut}\n可选规格: ${opts.join(', ') || '无'}`,
+        output: `${product.id}: ${product.name} - ${product.description} ${describePrice(product.price, normalizeCurrency(context.currency))}${soldOut}\n可选规格: ${opts.join(', ') || '无'}`,
       }
     }
 
@@ -196,12 +206,11 @@ export function executeToolCall(
       const spicy = String(args.spicy || '')
       const specParts = [portion, flavor, spicy].filter(Boolean)
       const spec = specParts.length ? specParts.join(' · ') : '标准份'
-      const portionFactor = portion.includes('半份') || portion.includes('Half') ? 0.58 : 1
-      const price = Math.round(product.price * portionFactor)
+      const price = portionPrice(product.price, portion.includes('半份') || portion.includes('Half'))
       const orderedBy = context.diners[0] || '未知'
 
       return {
-        output: `已加入购物车：${product.name} · ${spec}（下单人：${orderedBy}）`,
+        output: `已加入购物车：${product.name} · ${spec}（下单人：${orderedBy}）；${describePrice(price, normalizeCurrency(context.currency))}`,
         action: {
           type: 'ADD_CART',
           payload: {
@@ -250,15 +259,31 @@ export function executeToolCall(
       if (!context.cart.length) {
         return { output: '当前购物车还是空的，告诉我你想吃什么吧！' }
       }
-      const list = context.cart
-        .map((c) => `- ${c.uid}: ${c.name} x${c.quantity} ¥${c.price} 规格:${c.spec} 下单人:${c.orderedBy}`)
-        .join('\n')
-      const total = context.cart.reduce((sum, c) => sum + c.price * c.quantity, 0)
-      return { output: `当前购物车：\n${list}\n合计: ¥${total}` }
+      const currency = normalizeCurrency(context.currency)
+      const quote = quoteAmounts(context.cart, currency)
+      const list = context.cart.map((c, index) =>
+        `- ${c.uid}: ${c.name} x${c.quantity} 单价: 人民币 CNY ${formatMoney(c.price)}；行金额: 人民币 CNY ${formatMinor(quote.cny.lineAmounts[index])}${currency === 'CNY' ? '' : `；参考 ${formatMinor(quote.lineAmounts[index], currency)}`} 规格:${c.spec} 下单人:${c.orderedBy}`
+      ).join('\n')
+      return { output: `当前购物车：\n${list}\n合计: 人民币 CNY ${formatMinor(quote.cny.subtotal)}${currency === 'CNY' ? '' : `；参考 ${formatMinor(quote.subtotal, currency)}（演示汇率，仅供参考）`}` }
     }
 
     default:
       return { output: `未知工具: ${toolName}` }
+  }
+}
+
+/** Keep this request's cart aligned with the actions sent to the order reducer. */
+function applyToolAction(context: ProductStateContext, action?: FrontendAction): void {
+  if (action?.type === 'ADD_CART') {
+    const item = action.payload as unknown as CartItemContext
+    const same = context.cart.find((c) => c.productId === item.productId && c.spec === item.spec && c.orderedBy === item.orderedBy)
+    context.cart = same
+      ? context.cart.map((c) => c.uid === same.uid ? { ...c, quantity: c.quantity + 1 } : c)
+      : [...context.cart, item]
+  } else if (action?.type === 'CHANGE_QTY') {
+    context.cart = context.cart
+      .map((c) => c.uid === action.payload.uid ? { ...c, quantity: c.quantity + Number(action.payload.delta) } : c)
+      .filter((c) => c.quantity > 0)
   }
 }
 
@@ -301,7 +326,12 @@ export async function chatWithHarness(
   }
 
   const harnessId = harnessConfig.harness_id
-  const instructions = buildSystemInstructions(opts.context)
+  // Currency is captured once before awaiting the external request.
+  const context: ProductStateContext = {
+    ...opts.context,
+    currency: normalizeCurrency(opts.context.currency),
+    cart: opts.context.cart.map((item) => ({ ...item })),
+  }
   const tools = getToolDefinitions()
 
   let currentResponseId = opts.previousResponseId || ''
@@ -320,9 +350,9 @@ export async function chatWithHarness(
 
     const body: Record<string, unknown> = {
       model: harnessConfig.default_model,
-      metadata: { harness_id: harnessId },
+      metadata: { harness_id: harnessId, currency: context.currency },
       input: message,
-      instructions,
+      instructions: buildSystemInstructions(context),
       stream: true,
     }
 
@@ -447,7 +477,8 @@ export async function chatWithHarness(
         } catch {
           // 参数解析失败用空对象
         }
-        const result = executeToolCall(fc.name, args, opts.context)
+        const result = executeToolCall(fc.name, args, context)
+        applyToolAction(context, result.action)
         toolOutputs.push({ callId: fc.callId, output: result.output })
 
         // 如果有前端 action，推送给前端

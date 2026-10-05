@@ -1,3 +1,4 @@
+import { DEMO_RATES, normalizeCurrency, type CurrencyCode } from '../../shared/currency'
 import { useCallback, useRef, useState } from 'react'
 import i18next from 'i18next'
 import { products } from '@/data/menu'
@@ -10,6 +11,7 @@ export interface ChatMessage {
   id: string
   role: ChatRole
   content: string
+  currency: CurrencyCode
   streaming?: boolean
   error?: boolean
   traceUrl?: string
@@ -41,7 +43,7 @@ export { API_KEY_STORAGE_KEY }
  * 解析 SSE 流式响应，执行 tool action，支持多轮 tool call。
  * AI 操作通过 dispatch 转换为 product action，共享同一 orderReducer 状态。
  */
-export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppAction>) {
+export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppAction>, currency: CurrencyCode = 'CNY') {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,12 +72,17 @@ export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppActi
       soldOut: state.soldOut,
       diners: state.diners,
       language: i18next.language,
+      currency: normalizeCurrency(currency),
+      pricingCurrency: 'CNY',
+      demoRates: DEMO_RATES,
     }
-  }, [state.cart, state.soldOut, state.diners])
+  }, [state.cart, state.soldOut, state.diners, currency])
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return
 
+    const context = buildContext()
+    const turnCurrency = normalizeCurrency(context.currency)
     setError(null)
     setIsLoading(true)
 
@@ -84,6 +91,7 @@ export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppActi
       id: crypto.randomUUID(),
       role: 'user',
       content: text,
+      currency: turnCurrency,
     }
 
     // 添加空的 AI 消息（用于流式填充）
@@ -92,6 +100,7 @@ export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppActi
       id: aiMsgId,
       role: 'assistant',
       content: '',
+      currency: turnCurrency,
       streaming: true,
     }
 
@@ -124,7 +133,7 @@ export function useAIAssistant(state: AppState, dispatch: React.Dispatch<AppActi
         message: text,
         apiKey,
         previousResponseId: responseIdRef.current || undefined,
-        context: buildContext(),
+        context,
         signal: abortController.signal,
         onEvent: (event: SSEEvent) => {
           if (event.event === 'text_delta') {
