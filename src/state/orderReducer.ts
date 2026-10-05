@@ -1,5 +1,6 @@
 import i18next from 'i18next'
 import type { AppAction, AppState } from '@/types'
+import { quoteAmounts } from '../../shared/currency.js'
 
 export const initialState: AppState = {
   view: 'bind',
@@ -11,6 +12,7 @@ export const initialState: AppState = {
   soldOut: ['p8'],
   services: [],
   paid: false,
+  paymentSnapshot: null,
   lastMessage: i18next.t('message.welcome'),
 }
 
@@ -85,8 +87,19 @@ export function orderReducer(state: AppState, action: AppAction): AppState {
         orderItems: state.orderItems.map((item) => item.uid === action.uid ? { ...item, cancelState: 'requested' } : item),
         lastMessage: i18next.t('message.cancel_requested'),
       }
-    case 'PAY':
-      return { ...state, paid: true, lastMessage: i18next.t('message.paid') }
+    case 'PAY': {
+      if (state.paymentSnapshot) return state
+      const quote = quoteAmounts(state.orderItems, 'CNY', true)
+      return {
+        ...state,
+        paid: true,
+        paymentSnapshot: {
+          items: state.orderItems.map((item) => ({ ...item })),
+          paidCny: quote.cny.payable / 100,
+        },
+        lastMessage: i18next.t('message.paid'),
+      }
+    }
     case 'RESET':
       return { ...initialState, lastMessage: i18next.t('message.reset') }
     case 'SET_MESSAGE':

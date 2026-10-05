@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
-    "build": "tsc",
-    "start": "node --env-file-if-exists=.env dist/index.js",
+    "build": "tsc && node --input-type=module -e \"import { cpSync } from 'node:fs'; cpSync('harnesses', 'dist/server/harnesses', { recursive: true })\"",
+    "start": "node --env-file-if-exists=.env dist/server/src/index.js",
     "typecheck": "tsc --noEmit",
     "test": "node --test --import tsx src/__tests__/*.test.ts"
   },
