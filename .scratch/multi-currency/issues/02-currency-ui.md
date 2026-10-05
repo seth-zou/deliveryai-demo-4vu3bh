@@ -26,6 +26,6 @@
 - 全流程测试先因购物车仍显示 ¥217.00 而非 USD30.38 失败，报价与支付快照接入后通过。
 - 半份弹层先仍显示 USD5.88 而非 USD3.36 失败，统一 portionPrice 后通过；窄屏流程暴露固定底部导航遮挡结账按钮，留白修复后通过。
 
-验证命令：配置独立 PLAYWRIGHT_PORT=5174 与本机 headless Chromium，运行 npx playwright test e2e/multi-currency.spec.ts e2e/auto-discount.spec.ts e2e/dark-mode.spec.ts --reporter=list，29 passed (2.5m)。最终新增的 320px 加购浮动购物车边界及与 AI 入口非重叠断言单独复核 1 passed；截图复核后采用左右留白居中胶囊并上移至 AI 入口上方，避免遮挡金额。合入 feat/multi-currency 6181d19 后 npm run build 与本票源文件/e2e eslint --max-warnings 0 全部通过。
+验证命令：配置独立 PLAYWRIGHT_PORT=5174 与本机 headless Chromium，运行 npx playwright test e2e/multi-currency.spec.ts e2e/auto-discount.spec.ts e2e/dark-mode.spec.ts --reporter=list，29 passed (2.5m)。最终新增的 320px 加购浮动购物车边界及与 AI 入口非重叠断言单独复核 1 passed；截图复核后采用左右留白居中胶囊并上移至 AI 入口上方，避免遮挡金额；移动菜单 pb-64 为上移后的浮动区留出足够滚动空间，最后一排可完整移到浮动区上方。合入 feat/multi-currency 6181d19 后 npm run build 与本票源文件/e2e eslint --max-warnings 0 全部通过。
 
 截图：工作树 e2e-report/currency-mobile-dark-elderly.png（忽略的验收产物，未提交）。未推送、未创建 PR、未合并集成分支。
