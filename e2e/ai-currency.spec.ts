@@ -59,11 +59,11 @@ test('in-flight USD tools retain USD while the next response chain uses EUR and 
   await input.fill('来半份牛肉')
   await page.keyboard.press('Enter')
   await expect.poll(() => requests.length).toBe(1)
-  await expect(page.getByRole('button', { name: /停止生成|Stop/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /停止|Stop/ })).toBeVisible()
   await expect(page.locator('[data-message-role="assistant"][data-message-currency="USD"]')).toBeVisible()
 
   await currency.selectOption('EUR')
-  await expect(page.getByRole('button', { name: /停止生成|Stop/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /停止|Stop/ })).toBeVisible()
   await expect(page.locator('[data-message-role="assistant"][data-message-currency="USD"]')).toBeVisible()
   releaseFirst()
   const usdReply = page.locator('[data-message-role="assistant"][data-message-currency="USD"]')
