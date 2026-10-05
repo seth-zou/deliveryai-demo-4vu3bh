@@ -8,6 +8,7 @@
  * 前端明文存储仅限演示场景，不适用于生产环境。
  */
 
+import { applyCartMutation } from '../../shared/cart.js'
 import { DEMO_RATES, portionPrice, formatMoney, formatMinor, normalizeCurrency, quoteAmounts, type CurrencyCode } from '../../shared/currency.js'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
@@ -335,15 +336,13 @@ export function executeToolCall(
 /** Keep this request's cart aligned with the actions sent to the order reducer. */
 function applyToolAction(context: ProductStateContext, action?: FrontendAction): void {
   if (action?.type === 'ADD_CART') {
-    const item = action.payload as unknown as CartItemContext
-    const same = context.cart.find((c) => c.productId === item.productId && c.spec === item.spec && c.orderedBy === item.orderedBy)
-    context.cart = same
-      ? context.cart.map((c) => c.uid === same.uid ? { ...c, quantity: c.quantity + 1 } : c)
-      : [...context.cart, item]
+    context.cart = applyCartMutation(context.cart, {
+      type: 'ADD_CART', item: action.payload as unknown as CartItemContext,
+    })
   } else if (action?.type === 'CHANGE_QTY') {
-    context.cart = context.cart
-      .map((c) => c.uid === action.payload.uid ? { ...c, quantity: c.quantity + Number(action.payload.delta) } : c)
-      .filter((c) => c.quantity > 0)
+    context.cart = applyCartMutation(context.cart, {
+      type: 'CHANGE_QTY', uid: action.payload.uid as string, delta: Number(action.payload.delta),
+    })
   }
 }
 

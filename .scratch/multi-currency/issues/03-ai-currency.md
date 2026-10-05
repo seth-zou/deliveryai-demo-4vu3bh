@@ -17,6 +17,13 @@
 
 2026-10-06：阶段验证完成：公开工具/请求边界测试 10/10 通过（先红后绿，含逐行舍入、CNY半份加购、调用者切币种、连续工具轮和旧 response ID）；CNY消息标识页面测试 1/1 通过（节点缺失红测试后实现）；既有 AI 页面/代理 mock 回归 19/19 通过。此回归中的两个原名 REAL 用例未配置真实凭证，验到无 Key 错误/继续交互，不作为真实模型连通证据。前端构建、服务端 36 测试与 typecheck、改动文件 ESLint、diff检查均通过。已写 USD在途→EUR新轮次/历史标识 E2E，待页面币种入口合入后执行；ticket 保持 claimed。
 
+
+2026-10-06：Code-review 两项 P3 维护性发现已修正。将 adapter 和 orderReducer 的 ADD_CART / CHANGE_QTY 规则提取到 shared/cart.ts 的纯 applyCartMutation；前端 adapter、服务端 adapter 与页面 reducer 共用同一实现，保留已有同规格 +1 合并、原 uid / CNY 价格和减至零移除行为。双语 currency.rates 改为 usd/eur/hkd 插值，TopBar 从共享 DEMO_RATES 传入两位小数，汇率提示与报价共用同一数据源。
+
+本次为保持行为的重构，未增加纯 helper 镜像测试；在已批准的 AI 工具/加购公开入口补充两端连续加购、减量、移除及真实页面 reducer 协同回归。新增用例在提取前和提取后均通过，手工期望为原数量 2 的同规格牛肉加 quantity=5 仍变为 3 份（CNY126 / USD17.64），减 2 后为 1 份（CNY42 / USD5.88），最后减 1 移除；调用者上下文原数量仍为 2。
+
+修复后验证：npm run test:ai-currency 为 12 passed；server npm test 为 36 passed，server typecheck/build 均通过；前端 npm run build 与全量 npm run lint（max-warnings 0）均通过，git diff --check 通过。未启动 Vite 服务或浏览器，避免干扰根任务正在运行的 73 个浏览器用例；根任务将在独立 merger 合入后串行运行 2 个 AI 币种、7 个多币种、3 个满减用例，验证共享购物车和汇率插值。
+
 ## Answer
 
 已完成前端 hook/实际 adapter 与服务端 adapter 的币种适配。上下文包含展示币种、固定演示汇率和 CNY 定价/结算基准；菜单、详情、购物车、加购的确定性工具输出明确人民币原价与外币参考。购物车使用共享 quoteAmounts/formatMinor，半份使用共享 portionPrice，action 的 price 始终为人民币元。

@@ -2,6 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import * as browser from '../src/lib/harness-adapter.ts'
 import * as server from '../server/src/harness-router.ts'
+import { initialState, orderReducer } from '../src/state/orderReducer.ts'
+import type { CartItem } from '../src/types.ts'
 
 const context = {
   products: [{ id: 'beef', name: '牛肉', description: '鲜切', category: 'meat', price: 42 }],
@@ -130,6 +132,59 @@ for (const [name, adapter] of [['browser', browser], ['server', server]] as cons
       }
       assert.notEqual(typeof requests[2].input, 'string')
       assert.match((requests[2].input as Array<{ output: string }>)[0].output, /合计[^\n]*人民币 CNY ¥42\.00.*HKD 46\.20/)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+}
+
+for (const [name, adapter] of [['browser', browser], ['server', server]] as const) {
+  test(`${name}: repeated add and quantity reduction quote the same CNY cart actions as the page`, async () => {
+    const originalFetch = globalThis.fetch
+    const existing = { uid: 'existing-beef', productId: 'beef', name: '牛肉', price: 42,
+      quantity: 2, spec: '标准份', orderedBy: '顾客', image: '' }
+    const turnContext = { ...context, cart: [existing] }
+    let pageState = { ...initialState, cart: [{ ...existing }] }
+    const requests: Array<{ input: string | Array<{ output: string }> }> = []
+    globalThis.fetch = async (_url, init) => {
+      requests.push(JSON.parse(String(init?.body)))
+      if (requests.length === 1) return sse([
+        { type: 'function_call', call_id: 'add', name: 'add_to_cart', arguments: '{"product_id":"beef","quantity":5}' },
+        { type: 'function_call', call_id: 'after_add', name: 'get_cart', arguments: '{}' },
+        { type: 'function_call', call_id: 'reduce', name: 'update_cart_quantity', arguments: '{"uid":"existing-beef","delta":-2}' },
+        { type: 'function_call', call_id: 'after_reduce', name: 'get_cart', arguments: '{}' },
+        { type: 'function_call', call_id: 'remove', name: 'update_cart_quantity', arguments: '{"uid":"existing-beef","delta":-1}' },
+        { type: 'function_call', call_id: 'after_remove', name: 'get_cart', arguments: '{}' },
+      ], 'resp_mutations')
+      return sse([], 'resp_final')
+    }
+    try {
+      await adapter.chatWithHarness({
+        message: '连续加购和减量', apiKey: 'mock', featureKey: 'smart_order_assistant',
+        context: turnContext,
+        onEvent: (event) => {
+          const action = event.data.action as browser.FrontendAction | undefined
+          if (action?.type === 'ADD_CART') {
+            pageState = orderReducer(pageState, { type: 'ADD_CART', item: action.payload as unknown as CartItem })
+            // Existing same-spec lines retain the demo's +1 merge behavior.
+            assert.equal(pageState.cart[0].quantity, 3)
+            assert.equal(pageState.cart[0].price, 42)
+            assert.equal(pageState.cart[0].uid, 'existing-beef')
+          } else if (action?.type === 'CHANGE_QTY') {
+            pageState = orderReducer(pageState, {
+              type: 'CHANGE_QTY', uid: String(action.payload.uid), delta: Number(action.payload.delta),
+            })
+          }
+        },
+      })
+      const outputs = requests[1].input as Array<{ output: string }>
+      assert.match(outputs[1].output, /牛肉 x3/)
+      assert.match(outputs[1].output, /合计[^\n]*人民币 CNY ¥126\.00.*USD 17\.64/)
+      assert.match(outputs[3].output, /牛肉 x1/)
+      assert.match(outputs[3].output, /合计[^\n]*人民币 CNY ¥42\.00.*USD 5\.88/)
+      assert.match(outputs[5].output, /空的/)
+      assert.deepEqual(pageState.cart, [])
+      assert.equal(turnContext.cart[0].quantity, 2)
     } finally {
       globalThis.fetch = originalFetch
     }
