@@ -1,3 +1,4 @@
+import type { CurrencyCode } from '../../shared/currency'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Bot, Key, Eye, EyeOff, Send, Sparkles, Square, Trash2, X, RotateCcw } from 'lucide-react'
@@ -9,9 +10,10 @@ interface AIAssistantProps {
   state: AppState
   dispatch: React.Dispatch<AppAction>
   visible: boolean
+  currency?: CurrencyCode
 }
 
-export function AIAssistant({ state, dispatch, visible }: AIAssistantProps) {
+export function AIAssistant({ state, dispatch, visible, currency = 'CNY' }: AIAssistantProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -30,7 +32,7 @@ export function AIAssistant({ state, dispatch, visible }: AIAssistantProps) {
     stopGeneration,
     clearChat,
     retryLast,
-  } = useAIAssistant(state, dispatch)
+  } = useAIAssistant(state, dispatch, currency)
 
   // 自动滚动到最新消息
   useEffect(() => {
@@ -325,25 +327,29 @@ function MessageBubble({ message, t, onRetry, isLoading }: {
 
   if (isUser) {
     return (
-      <div className="flex justify-end">
+      <div className="flex justify-end" data-message-role={message.role} data-message-currency={message.currency}>
         <div className="max-w-[80%] rounded-2xl rounded-br-md bg-chili-500 px-4 py-2.5 text-sm text-white shadow-sm dark:bg-chili-400">
-          {message.content}
+          <div>{message.content}</div>
+          <span aria-label={`Currency: ${message.currency}`} className="mt-1 block text-[10px] opacity-70">{message.currency}</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1" data-message-role={message.role} data-message-currency={message.currency}>
       <div className={`max-w-[85%] rounded-2xl rounded-bl-md px-4 py-2.5 text-sm shadow-sm ${
         message.error
           ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'
           : 'bg-white text-charcoal-900 dark:bg-charcoal-800 dark:text-rice-50'
       }`}>
-        {message.content || (message.streaming ? '' : '')}
-        {message.streaming && message.content && (
-          <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-chili-500 dark:bg-chili-400" />
-        )}
+        <div>
+          {message.content || ''}
+          {message.streaming && message.content && (
+            <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-chili-500 dark:bg-chili-400" />
+          )}
+        </div>
+        <span aria-label={`Currency: ${message.currency}`} className="mt-1 block text-[10px] opacity-60">{message.currency}</span>
         {message.error && !isLoading && (
           <button
             onClick={onRetry}

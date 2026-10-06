@@ -40,6 +40,13 @@ export interface ServiceRequest {
   status: 'waiting' | 'responded'
 }
 
+export interface PaymentSnapshot {
+  /** A copy of the order details confirmed by the first payment. */
+  items: OrderItem[]
+  /** Actual amount paid in CNY yuan, independent of the display currency. */
+  paidCny: number
+}
+
 export interface AppState {
   view: ViewName
   table: string | null
@@ -50,6 +57,7 @@ export interface AppState {
   soldOut: string[]
   services: ServiceRequest[]
   paid: boolean
+  paymentSnapshot: PaymentSnapshot | null
   lastMessage: string
 }
 

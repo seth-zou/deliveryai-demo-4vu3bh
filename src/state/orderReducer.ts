@@ -1,5 +1,7 @@
 import i18next from 'i18next'
 import type { AppAction, AppState } from '@/types'
+import { quoteAmounts } from '../../shared/currency.js'
+import { applyCartMutation } from '../../shared/cart.js'
 
 export const initialState: AppState = {
   view: 'bind',
@@ -11,6 +13,7 @@ export const initialState: AppState = {
   soldOut: ['p8'],
   services: [],
   paid: false,
+  paymentSnapshot: null,
   lastMessage: i18next.t('message.welcome'),
 }
 
@@ -30,16 +33,11 @@ export function orderReducer(state: AppState, action: AppAction): AppState {
     case 'SET_VIEW':
       return { ...state, view: action.view }
     case 'ADD_CART': {
-      const same = state.cart.find((item) => item.productId === action.item.productId && item.spec === action.item.spec && item.orderedBy === action.item.orderedBy)
-      const cart = same
-        ? state.cart.map((item) => item.uid === same.uid ? { ...item, quantity: item.quantity + 1 } : item)
-        : [...state.cart, action.item]
+      const cart = applyCartMutation(state.cart, action)
       return { ...state, cart, lastMessage: i18next.t('message.add_cart', { name: action.item.orderedBy, dish: action.item.name }) }
     }
     case 'CHANGE_QTY': {
-      const cart = state.cart
-        .map((item) => item.uid === action.uid ? { ...item, quantity: item.quantity + action.delta } : item)
-        .filter((item) => item.quantity > 0)
+      const cart = applyCartMutation(state.cart, action)
       return { ...state, cart }
     }
     case 'SUBMIT_ORDER': {
@@ -85,8 +83,19 @@ export function orderReducer(state: AppState, action: AppAction): AppState {
         orderItems: state.orderItems.map((item) => item.uid === action.uid ? { ...item, cancelState: 'requested' } : item),
         lastMessage: i18next.t('message.cancel_requested'),
       }
-    case 'PAY':
-      return { ...state, paid: true, lastMessage: i18next.t('message.paid') }
+    case 'PAY': {
+      if (state.paymentSnapshot) return state
+      const quote = quoteAmounts(state.orderItems, 'CNY', true)
+      return {
+        ...state,
+        paid: true,
+        paymentSnapshot: {
+          items: state.orderItems.map((item) => ({ ...item })),
+          paidCny: quote.cny.payable / 100,
+        },
+        lastMessage: i18next.t('message.paid'),
+      }
+    }
     case 'RESET':
       return { ...initialState, lastMessage: i18next.t('message.reset') }
     case 'SET_MESSAGE':

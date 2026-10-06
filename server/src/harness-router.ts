@@ -8,6 +8,8 @@
  * 前端明文存储仅限演示场景，不适用于生产环境。
  */
 
+import { applyCartMutation } from '../../shared/cart.js'
+import { DEMO_RATES, portionPrice, formatMoney, formatMinor, normalizeCurrency, quoteAmounts, type CurrencyCode } from '../../shared/currency.js'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -67,6 +69,9 @@ export interface ProductStateContext {
   soldOut: string[]
   diners: string[]
   language: string
+  currency?: CurrencyCode
+  pricingCurrency?: 'CNY'
+  demoRates?: typeof DEMO_RATES
 }
 
 /** 服务端返回给前端的 tool 执行结果中的前端 action */
@@ -141,7 +146,12 @@ export function getToolDefinitions(): ToolDefinition[] {
 
 // ── 系统指令构建 ──────────────────────────────────────────
 
+function describePrice(cnyPrice: number, currency: CurrencyCode): string {
+  return `人民币原价 CNY ${formatMoney(cnyPrice)}${currency === 'CNY' ? '' : `；参考 ${formatMoney(cnyPrice, currency)}（演示汇率，仅供参考）`}`
+}
+
 export function buildSystemInstructions(context: ProductStateContext): string {
+  const currency = normalizeCurrency(context.currency)
   const config = loadHarnessConfig()
   const productList = context.products
     .map((p) => {
@@ -151,19 +161,22 @@ export function buildSystemInstructions(context: ProductStateContext): string {
       if (p.options?.spicy?.length) opts.push(`辣度: ${p.options.spicy.join('/')}`)
       const optStr = opts.length ? ` [${opts.join(', ')}]` : ''
       const soldOut = context.soldOut.includes(p.id) ? ' (已售罄)' : ''
-      return `- ${p.id}: ${p.name} - ${p.description} ¥${p.price} 分类:${p.category}${optStr}${soldOut}`
+      return `- ${p.id}: ${p.name} - ${p.description} ${describePrice(p.price, currency)} 分类:${p.category}${optStr}${soldOut}`
     })
     .join('\n')
 
-  const cartList = context.cart.length
-    ? context.cart.map((c) => `- uid:${c.uid} ${c.name} x${c.quantity} ¥${c.price} 规格:${c.spec} 下单人:${c.orderedBy}`).join('\n')
-    : '(空)'
+  const cartList = context.cart.length ? executeToolCall('get_cart', {}, context).output : '(空)'
 
   const langInstruction = context.language === 'en'
     ? 'Respond in English.'
     : '请用中文回复。'
 
   return `${config.system_prompt}
+
+Display currency: ${currency}
+定价与结算币种: CNY；所有 price 字段为人民币元，加购不得写入外币。
+演示汇率（固定，仅供参考）: 1 CNY = ${DEMO_RATES.USD.toFixed(2)} USD, ${DEMO_RATES.EUR.toFixed(2)} EUR, ${DEMO_RATES.HKD.toFixed(2)} HKD
+本轮所有回复和工具沿用 ${currency}，外币金额为参考换算；以本轮指令为准，覆盖旧轮次币种。
 
 当前菜单数据：
 ${productList}
@@ -202,7 +215,7 @@ export function executeToolCall(
       }
       const list = results.map((p) => {
         const soldOut = context.soldOut.includes(p.id) ? ' [已售罄]' : ''
-        return `${p.id}: ${p.name} - ${p.description} ¥${p.price}${soldOut}`
+        return `${p.id}: ${p.name} - ${p.description} ${describePrice(p.price, normalizeCurrency(context.currency))}${soldOut}`
       }).join('\n')
       return { output: `搜索结果：\n${list}` }
     }
@@ -217,7 +230,7 @@ export function executeToolCall(
       }
       const list = results.map((p) => {
         const soldOut = context.soldOut.includes(p.id) ? ' [已售罄]' : ''
-        return `${p.id}: ${p.name} - ${p.description} ¥${p.price}${soldOut}`
+        return `${p.id}: ${p.name} - ${p.description} ${describePrice(p.price, normalizeCurrency(context.currency))}${soldOut}`
       }).join('\n')
       return { output: `分类菜品：\n${list}` }
     }
@@ -233,7 +246,7 @@ export function executeToolCall(
       if (product.options?.flavor?.length) opts.push(`口味: ${product.options.flavor.join('/')}`)
       if (product.options?.spicy?.length) opts.push(`辣度: ${product.options.spicy.join('/')}`)
       const soldOut = context.soldOut.includes(product.id) ? ' [已售罄]' : ''
-      return { output: `${product.id}: ${product.name} - ${product.description} ¥${product.price}${soldOut}\n可选规格: ${opts.join(', ') || '无'}` }
+      return { output: `${product.id}: ${product.name} - ${product.description} ${describePrice(product.price, normalizeCurrency(context.currency))}${soldOut}\n可选规格: ${opts.join(', ') || '无'}` }
     }
 
     case 'add_to_cart': {
@@ -256,12 +269,11 @@ export function executeToolCall(
       const spicy = String(args.spicy || '')
       const specParts = [portion, flavor, spicy].filter(Boolean)
       const spec = specParts.length ? specParts.join(' · ') : '标准份'
-      const portionFactor = portion.includes('半份') || portion.includes('Half') ? 0.58 : 1
-      const price = Math.round(product.price * portionFactor)
+      const price = portionPrice(product.price, portion.includes('半份') || portion.includes('Half'))
       const orderedBy = context.diners[0] || '未知'
 
       return {
-        output: `已加入购物车：${product.name} · ${spec}（下单人：${orderedBy}）`,
+        output: `已加入购物车：${product.name} · ${spec}（下单人：${orderedBy}）；${describePrice(price, normalizeCurrency(context.currency))}`,
         action: {
           type: 'ADD_CART',
           payload: {
@@ -308,13 +320,29 @@ export function executeToolCall(
       if (!context.cart.length) {
         return { output: '当前购物车还是空的，告诉我你想吃什么吧！' }
       }
-      const list = context.cart.map((c) => `- ${c.uid}: ${c.name} x${c.quantity} ¥${c.price} 规格:${c.spec} 下单人:${c.orderedBy}`).join('\n')
-      const total = context.cart.reduce((sum, c) => sum + c.price * c.quantity, 0)
-      return { output: `当前购物车：\n${list}\n合计: ¥${total}` }
+      const currency = normalizeCurrency(context.currency)
+      const quote = quoteAmounts(context.cart, currency)
+      const list = context.cart.map((c, index) =>
+        `- ${c.uid}: ${c.name} x${c.quantity} 单价: 人民币 CNY ${formatMoney(c.price)}；行金额: 人民币 CNY ${formatMinor(quote.cny.lineAmounts[index])}${currency === 'CNY' ? '' : `；参考 ${formatMinor(quote.lineAmounts[index], currency)}`} 规格:${c.spec} 下单人:${c.orderedBy}`
+      ).join('\n')
+      return { output: `当前购物车：\n${list}\n合计: 人民币 CNY ${formatMinor(quote.cny.subtotal)}${currency === 'CNY' ? '' : `；参考 ${formatMinor(quote.subtotal, currency)}（演示汇率，仅供参考）`}` }
     }
 
     default:
       return { output: `未知工具: ${toolName}` }
+  }
+}
+
+/** Keep this request's cart aligned with the actions sent to the order reducer. */
+function applyToolAction(context: ProductStateContext, action?: FrontendAction): void {
+  if (action?.type === 'ADD_CART') {
+    context.cart = applyCartMutation(context.cart, {
+      type: 'ADD_CART', item: action.payload as unknown as CartItemContext,
+    })
+  } else if (action?.type === 'CHANGE_QTY') {
+    context.cart = applyCartMutation(context.cart, {
+      type: 'CHANGE_QTY', uid: action.payload.uid as string, delta: Number(action.payload.delta),
+    })
   }
 }
 
@@ -356,19 +384,25 @@ export async function chatWithHarness(opts: ChatOptions): Promise<{ responseId: 
 
   const harnessId = getHarnessId(opts.featureKey)
   const config = loadHarnessConfig()
-  const instructions = buildSystemInstructions(opts.context)
+  // Currency is captured once before awaiting the external request.
+  const context: ProductStateContext = {
+    ...opts.context,
+    currency: normalizeCurrency(opts.context.currency),
+    cart: opts.context.cart.map((item) => ({ ...item })),
+  }
   const tools = getToolDefinitions()
 
   let currentResponseId = opts.previousResponseId || ''
+  let message: string | Array<Record<string, unknown>> = opts.message
   let needsToolCall = true
   let traceUrl: string | undefined
 
   while (needsToolCall) {
     const body: Record<string, unknown> = {
       model: config.default_model,
-      metadata: { harness_id: harnessId },
-      input: currentResponseId ? opts.message : opts.message,
-      instructions,
+      metadata: { harness_id: harnessId, currency: context.currency },
+      input: message,
+      instructions: buildSystemInstructions(context),
       stream: true,
     }
 
@@ -406,7 +440,7 @@ export async function chatWithHarness(opts: ChatOptions): Promise<{ responseId: 
     let buffer = ''
     let fullText = ''
     void fullText
-    let functionCalls: Array<{ callId: string; name: string; arguments: string }> = []
+    const functionCalls: Array<{ callId: string; name: string; arguments: string }> = []
     let responseId = ''
 
     try {
@@ -495,7 +529,8 @@ export async function chatWithHarness(opts: ChatOptions): Promise<{ responseId: 
         } catch {
           // 参数解析失败用空对象
         }
-        const result = executeToolCall(fc.name, args, opts.context)
+        const result = executeToolCall(fc.name, args, context)
+        applyToolAction(context, result.action)
         toolOutputs.push({ callId: fc.callId, output: result.output })
 
         // 如果有前端 action，推送给前端
@@ -525,13 +560,14 @@ export async function chatWithHarness(opts: ChatOptions): Promise<{ responseId: 
       // 使用 previous_response_id + function_call_output
       const followUpBody: Record<string, unknown> = {
         model: config.default_model,
-        metadata: { harness_id: harnessId },
+        metadata: { harness_id: harnessId, currency: context.currency },
         previous_response_id: currentResponseId,
         input: toolOutputs.map((to) => ({
           type: 'function_call_output',
           call_id: to.callId,
           output: to.output,
         })),
+        instructions: buildSystemInstructions(context),
         stream: true,
       }
 
@@ -633,8 +669,22 @@ export async function chatWithHarness(opts: ChatOptions): Promise<{ responseId: 
 
       // 如果 follow-up 又有 tool calls，继续循环
       if (followUpFunctionCalls.length > 0) {
-        functionCalls = followUpFunctionCalls
-        // 继续 while 循环执行新的 tool calls
+        // Return every follow-up tool's output using this turn's fixed currency.
+        message = followUpFunctionCalls.map((fc) => {
+          let args: Record<string, unknown> = {}
+          try {
+            args = JSON.parse(fc.arguments || '{}')
+          } catch {
+            // Match the first tool round's invalid-argument fallback.
+          }
+          const result = executeToolCall(fc.name, args, context)
+          applyToolAction(context, result.action)
+          opts.onEvent({ event: 'tool_result', data: {
+            tool: fc.name, success: true, message: result.output,
+            ...(result.action ? { action: result.action } : {}),
+          } })
+          return { type: 'function_call_output', call_id: fc.callId, output: result.output }
+        })
       } else {
         needsToolCall = false
       }

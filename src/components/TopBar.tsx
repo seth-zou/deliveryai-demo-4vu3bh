@@ -5,9 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { tableAreas } from '@/data/menu'
 import type { ThemeMode } from '@/hooks/useTheme'
+import { CURRENCIES, DEMO_RATES, formatMoney, isCurrencyCode, type CurrencyCode } from '../../shared/currency'
 import type { ViewName } from '@/types'
 
 interface TopBarProps {
+  currency?: CurrencyCode
+  onCurrency?: (currency: CurrencyCode) => void
   table: string
   view: ViewName
   serviceCount: number
@@ -23,7 +26,7 @@ interface TopBarProps {
   onConsole: () => void
 }
 
-export function TopBar({ table, view, serviceCount, language, elderly, theme, isDark, onToggleLanguage, onToggleElderly, onSetTheme, onView, onService, onConsole }: TopBarProps) {
+export function TopBar({ currency = 'CNY', onCurrency, table, view, serviceCount, language, elderly, theme, isDark, onToggleLanguage, onToggleElderly, onSetTheme, onView, onService, onConsole }: TopBarProps) {
   const { t } = useTranslation()
   const areaKey = tableAreas[table]
   const tableLabel = areaKey ? `${table} · ${t(areaKey)}` : table
@@ -56,7 +59,7 @@ export function TopBar({ table, view, serviceCount, language, elderly, theme, is
         {t('common.banner')}
       </div>
       <header className="sticky top-0 z-30 border-b border-charcoal-900/5 bg-rice-50/95 backdrop-blur-xl dark:border-rice-50/10 dark:bg-charcoal-950/95">
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 lg:px-6">
+        <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center gap-2 px-4 py-3 lg:px-6">
           <button onClick={() => onView('menu')} className="flex items-center gap-2 text-left">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-chili-500 text-lg font-black text-white shadow-md dark:bg-chili-400">{t('common.brand')}</span>
             <span className="hidden sm:block"><strong className="block leading-4 text-charcoal-900 dark:text-rice-50">{t('common.brand_name')}</strong><small className="text-charcoal-500 dark:text-rice-200/60">{t('common.subtitle')}</small></span>
@@ -78,7 +81,7 @@ export function TopBar({ table, view, serviceCount, language, elderly, theme, is
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-charcoal-800 dark:shadow-dark-card"><p className="text-xs text-charcoal-500 dark:text-rice-200/60">{t('common.queue')}</p><p className="mt-2 text-2xl font-extrabold text-charcoal-900 dark:text-rice-50">A018</p><p className="text-xs text-chili-500 dark:text-chili-400">{t('common.queue_ahead')}</p></div>
-                <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-charcoal-800 dark:shadow-dark-card"><p className="text-xs text-charcoal-500 dark:text-rice-200/60">{t('common.benefits')}</p><p className="mt-2 text-2xl font-extrabold text-charcoal-900 dark:text-rice-50">4 <small className="text-sm">{t('common.tickets')}</small></p><p className="text-xs text-amber-500">{t('common.coupon')}</p></div>
+                <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-charcoal-800 dark:shadow-dark-card"><p className="text-xs text-charcoal-500 dark:text-rice-200/60">{t('common.benefits')}</p><p className="mt-2 text-2xl font-extrabold text-charcoal-900 dark:text-rice-50">4 <small className="text-sm">{t('common.tickets')}</small></p><p className="text-xs text-amber-500">{t('common.coupon')}</p>{currency !== 'CNY' && <p className="mt-1 text-xs text-amber-500">{t('currency.coupon', { amount: formatMoney(30, currency) })} · {t('currency.reference')}</p>}</div>
               </div>
             </DialogContent>
           </Dialog>
@@ -116,6 +119,15 @@ export function TopBar({ table, view, serviceCount, language, elderly, theme, is
           <Button variant="outline" size="sm" onClick={onToggleLanguage} aria-label={t('common.aria_lang')}>
             <Languages size={16} />{language === 'zh' ? 'EN' : '中'}
           </Button>
+          <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-t border-charcoal-900/5 pt-2 text-xs text-charcoal-500 dark:border-rice-50/10 dark:text-rice-200/70">
+            <label className="flex shrink-0 items-center gap-2 font-bold text-charcoal-700 dark:text-rice-100">
+              {t('currency.label')}
+              <select value={currency} aria-describedby="currency-rates" onChange={(event) => { if (isCurrencyCode(event.target.value)) onCurrency?.(event.target.value) }} className="min-h-9 rounded-lg border border-charcoal-900/15 bg-white px-2 text-sm text-charcoal-900 focus:outline-none focus:ring-2 focus:ring-chili-500 dark:border-rice-50/20 dark:bg-charcoal-800 dark:text-rice-50">
+                {CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}
+              </select>
+            </label>
+            <p id="currency-rates" className="w-full min-w-0 leading-5 sm:w-auto sm:flex-1">{t('currency.rates', { usd: DEMO_RATES.USD.toFixed(2), eur: DEMO_RATES.EUR.toFixed(2), hkd: DEMO_RATES.HKD.toFixed(2) })}</p>
+          </div>
         </div>
       </header>
     </>
